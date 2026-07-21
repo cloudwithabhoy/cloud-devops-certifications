@@ -851,3 +851,530 @@ Which solution meets these requirements and is the MOST operationally efficient?
 - A. Wrong — SSE-C requires the customer to supply and manage the encryption key with every request; there's no AWS-integrated logging of key usage or automatic rotation, making it far more operationally burdensome.
 - B. Wrong — SSE-S3 uses AWS-managed keys, but their usage isn't logged per-request in CloudTrail with the same detail as KMS, and there's no user-controlled rotation schedule requirement being met/tracked.
 - C. Wrong — Manual rotation requires the company to remember and perform key rotation every year themselves, which is more operationally intensive than KMS's built-in automatic rotation feature.
+
+## Question 26 (Choose two)
+
+A company is migrating its on-premises PostgreSQL database to Amazon Aurora PostgreSQL. The on-premises database must remain online and accessible during the migration. The Aurora database must remain synchronized with the on-premises database.
+
+Which combination of actions must a solutions architect take to meet these requirements? (Choose two.)
+
+- A. Create an ongoing replication task.
+- B. Create a database backup of the on-premises database.
+- C. Create an AWS Database Migration Service (AWS DMS) replication server.
+- D. Convert the database schema by using the AWS Schema Conversion Tool (AWS SCT).
+- E. Create an Amazon EventBridge (Amazon CloudWatch Events) rule to monitor the database synchronization.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +---------------------------+     +------------------------+
+ | On-premises PostgreSQL | --> | AWS DMS Replication Server| --> | Amazon Aurora         |
+ | (remains online)       |     | + ongoing replication task |     | PostgreSQL            |
+ +------------------------+     | (continuous sync)          |     | (stays synchronized)  |
+                                +---------------------------+     +------------------------+
+```
+
+**Correct Answers: A and C**
+
+**Explanation:** AWS DMS is designed exactly for this scenario — a replication server (C) is provisioned to perform the migration, and an ongoing (continuous) replication task (A) keeps capturing and applying changes from the source to the target after the initial load, so the on-premises database stays online and the Aurora target stays synchronized in near real time.
+
+- B. Wrong — A one-time backup doesn't provide continuous synchronization; it captures a single point in time and wouldn't keep the target updated with ongoing changes.
+- D. Wrong — AWS SCT converts database schemas between different engines (e.g., Oracle to PostgreSQL); since PostgreSQL to Aurora PostgreSQL is a homogeneous migration (same engine), schema conversion isn't needed.
+- E. Wrong — An EventBridge rule can monitor for events, but it doesn't perform the actual data replication/synchronization work required to keep the databases in sync.
+
+## Question 27
+
+A company runs a stateless web application in production on a group of Amazon EC2 On-Demand Instances behind an Application Load Balancer. The application experiences heavy usage during an 8-hour period each business day. Application usage is moderate and steady overnight. Application usage is low during weekends.
+
+The company wants to minimize its EC2 costs without affecting the availability of the application.
+
+Which solution will meet these requirements?
+
+- A. Use Spot Instances for the entire workload.
+- B. Use Reserved Instances for the baseline level of usage. Use Spot instances for any additional capacity that the application needs.
+- C. Use On-Demand Instances for the baseline level of usage. Use Spot Instances for any additional capacity that the application needs.
+- D. Use Dedicated Instances for the baseline level of usage. Use On-Demand Instances for any additional capacity that the application needs.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +------------------------------+
+ | Reserved Instances     |     | Spot Instances               |
+ | (steady baseline:      |     | (extra capacity during the   |
+ |  overnight/weekend     |     |  8-hour peak business period)|
+ |  usage)                |     +------------------------------+
+ +------------------------+
+              \___________________________/
+                          |
+                          v
+              +------------------------+
+              | Application Load       |
+              | Balancer                |
+              +------------------------+
+```
+
+**Correct Answer: B**
+
+**Explanation:** Reserved Instances offer a significant discount for the steady, predictable baseline usage that runs overnight and on weekends, guaranteeing that capacity is always available. Spot Instances then cover the extra capacity needed only during the predictable 8-hour daily peak, at a steep discount — since the application is stateless, it tolerates Spot interruptions without affecting overall availability, as the Reserved baseline keeps the app running.
+
+- A. Wrong — Relying entirely on Spot Instances risks availability if Spot capacity is reclaimed with no guaranteed baseline capacity to fall back on.
+- C. Wrong — On-Demand pricing for the baseline is more expensive than Reserved Instances for guaranteed, steady usage that is known in advance; Reserved Instances are the more cost-effective choice for a predictable baseline.
+- D. Wrong — Dedicated Instances address compliance/isolation needs (dedicated hardware) and cost more than Reserved Instances without offering a usage discount; On-Demand for extra capacity is also costlier than Spot for a stateless, interruption-tolerant workload.
+
+## Question 28
+
+A company is running an online transaction processing (OLTP) workload on AWS. This workload uses an unencrypted Amazon RDS DB instance in a Multi-AZ deployment. Daily database snapshots are taken from this instance.
+
+What should a solutions architect do to ensure the database and snapshots are always encrypted moving forward?
+
+- A. Encrypt a copy of the latest DB snapshot. Replace existing DB instance by restoring the encrypted snapshot.
+- B. Create a new encrypted Amazon Elastic Block Store (Amazon EBS) volume and copy the snapshots to it. Enable encryption on the DB instance.
+- C. Copy the snapshots and enable encryption using AWS Key Management Service (AWS KMS). Restore encrypted snapshot to an existing DB instance.
+- D. Copy the snapshots to an Amazon S3 bucket that is encrypted using server-side encryption with AWS Key Management Service (AWS KMS) managed keys (SSE-KMS).
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +---------------------------+     +------------------------+
+ | Existing unencrypted   | --> | Encrypted copy of latest  | --> | Restore as new        |
+ | RDS DB instance        |     | DB snapshot (KMS)         |     | encrypted DB instance |
+ +------------------------+     +---------------------------+     +------------------------+
+                                                                       (replaces original,
+                                                                        future snapshots
+                                                                        inherit encryption)
+```
+
+**Correct Answer: A**
+
+**Explanation:** RDS encryption cannot be enabled in place on an existing unencrypted instance. The supported path is to take (or use) a snapshot, create an encrypted copy of that snapshot (via KMS), and then restore a new DB instance from the encrypted snapshot copy. That new instance replaces the original, and from then on all its snapshots are automatically encrypted too.
+
+- B. Wrong — RDS storage isn't a directly user-manageable EBS volume you can swap out this way, and RDS encryption still cannot simply be "enabled" on an existing unencrypted DB instance.
+- C. Wrong — You can't restore an encrypted snapshot onto an existing (already-created, unencrypted) DB instance; restoring a snapshot always creates a new DB instance.
+- D. Wrong — Copying snapshots into an encrypted S3 bucket encrypts the S3 copies of the data, but it does not encrypt the actual running RDS DB instance or make its ongoing native RDS snapshots encrypted.
+
+## Question 29
+
+A company sells ringtones created from clips of popular songs. The files containing the ringtones are stored in Amazon S3 Standard and are at least 128 KB in size. The company has millions of files, but downloads are infrequent for ringtones older than 90 days. The company needs to save money on storage while keeping the most accessed files readily available for its users.
+
+Which action should the company take to meet these requirements MOST cost-effectively?
+
+- A. Configure S3 Standard-Infrequent Access (S3 Standard-IA) storage for the initial storage tier of the objects.
+- B. Move the files to S3 Intelligent-Tiering and configure it to move objects to a less expensive storage tier after 90 days.
+- C. Configure S3 inventory to manage objects and move them to S3 Standard-Infrequent Access (S3 Standard-IA) after 90 days.
+- D. Implement an S3 Lifecycle policy that moves the objects from S3 Standard to S3 Standard-Infrequent Access (S3 Standard-1A) after 90 days.
+
+**Architecture Diagram:**
+
+```
+ +------------------+   0-90 days    +------------------------+
+ | Ringtone files   | -------------> | S3 Standard             |
+ | (millions,       |                | (frequent access)       |
+ |  >=128 KB each)  |                +------------------------+
+ +------------------+                          |
+                                                | S3 Lifecycle policy
+                                                | after 90 days
+                                                v
+                                      +------------------------+
+                                      | S3 Standard-IA          |
+                                      | (infrequent access,     |
+                                      |  lower storage cost)    |
+                                      +------------------------+
+```
+
+**Correct Answer: D**
+
+**Explanation:** Since the access pattern is known and predictable (frequent for 90 days, then infrequent), a simple S3 Lifecycle policy transitioning objects to S3 Standard-IA after 90 days achieves the savings with no ongoing monitoring cost. Intelligent-Tiering is better suited to unpredictable access patterns and charges a small monthly monitoring fee per object — with millions of files, that adds unnecessary cost when the pattern is already known.
+
+- A. Wrong — Starting objects directly in S3 Standard-IA would apply infrequent-access pricing (and its per-GB retrieval fee) to newly uploaded files that are actually accessed frequently during their first 90 days, increasing cost.
+- B. Wrong — Intelligent-Tiering's per-object monitoring fee is unnecessary overhead when the 90-day access change is already known and predictable — a lifecycle policy achieves the same savings without that fee.
+- C. Wrong — S3 Inventory is a reporting tool that lists objects and metadata; it doesn't perform automatic storage-class transitions — S3 Lifecycle policies are the correct mechanism for that.
+
+## Question 30
+
+A company has a highly dynamic batch processing job that uses many Amazon EC2 instances to complete it. The job is stateless in nature, can be started and stopped at any given time with no negative impact, and typically takes upwards of 60 minutes total to complete. The company has asked a solutions architect to design a scalable and cost-effective solution that meets the requirements of the job.
+
+What should the solutions architect recommend?
+
+- A. Implement EC2 Spot Instances.
+- B. Purchase EC2 Reserved Instances.
+- C. Implement EC2 On-Demand Instances.
+- D. Implement the processing on AWS Lambda.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +----------------------------+
+ | Batch processing job   | --> | EC2 Spot Instances         |
+ | (stateless, tolerant   |     | (deep discount, can be     |
+ |  of interruption)      |     |  interrupted/reclaimed)    |
+ +------------------------+     +----------------------------+
+```
+
+**Correct Answer: A**
+
+**Explanation:** Spot Instances offer the steepest discount off On-Demand pricing and are ideal for workloads that are stateless, can be started/stopped at any time, and tolerate interruption — exactly what this batch job requires. This makes Spot the most cost-effective choice while still being highly scalable.
+
+- B. Wrong — Reserved Instances require a 1- or 3-year commitment for steady-state usage; they don't fit a "highly dynamic" job whose instance needs vary and aren't a continuous baseline.
+- C. Wrong — On-Demand Instances work but cost significantly more than Spot for a workload that explicitly tolerates interruption, so they aren't the most cost-effective choice.
+- D. Wrong — AWS Lambda has a maximum execution timeout of 15 minutes, which doesn't fit a job that "typically takes upwards of 60 minutes total to complete," making it technically unsuitable.
+
+## Question 31
+
+An application runs on Amazon EC2 instances across multiple Availability Zones. The instances run in an Amazon EC2 Auto Scaling group behind an Application Load Balancer. The application performs best when the CPU utilization of the EC2 instances is at or near 40%.
+
+What should a solutions architect do to maintain the desired performance across all instances in the group?
+
+- A. Use a simple scaling policy to dynamically scale the Auto Scaling group.
+- B. Use a target tracking policy to dynamically scale the Auto Scaling group.
+- C. Use an AWS Lambda function to update the desired Auto Scaling group capacity.
+- D. Use scheduled scaling actions to scale up and scale down the Auto Scaling group.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +----------------------------+     +------------------------+
+ | Amazon CloudWatch      | --> | Target Tracking Policy     | --> | Auto Scaling Group    |
+ | (monitors CPU metric)  |     | (target: 40% CPU           |     | (adds/removes          |
+ |                        |     |  utilization)               |     |  instances to match)  |
+ +------------------------+     +----------------------------+     +------------------------+
+```
+
+**Correct Answer: B**
+
+**Explanation:** A target tracking scaling policy lets you specify a target value for a metric (here, 40% CPU utilization), and Auto Scaling automatically adds or removes instances as needed to keep the average at that target — continuously and dynamically, across all instances in the group, with minimal configuration.
+
+- A. Wrong — Simple scaling policies react to a single CloudWatch alarm breach with a fixed adjustment and then wait for a cooldown period, which is less precise and responsive than continuously tracking a target metric value.
+- C. Wrong — A custom Lambda function to manually update desired capacity adds unnecessary operational complexity when Auto Scaling's built-in target tracking already handles this natively.
+- D. Wrong — Scheduled scaling actions adjust capacity at fixed times, which doesn't respond to the actual, real-time CPU utilization needed to maintain the 40% target.
+
+## Question 32
+
+A global company hosts its web application on Amazon EC2 instances behind an Application Load Balancer (ALB). The web application has static data and dynamic data. The company stores its static data in an Amazon S3 bucket. The company wants to improve performance and reduce latency for the static data and dynamic data. The company is using its own domain name registered with Amazon Route 53.
+
+What should a solutions architect do to meet these requirements?
+
+- A. Create an Amazon CloudFront distribution that has the S3 bucket and the ALB as origins. Configure Route 53 to route traffic to the CloudFront distribution.
+- B. Create an Amazon CloudFront distribution that has the ALB as an origin. Create an AWS Global Accelerator standard accelerator that has the S3 bucket as an endpoint. Configure Route 53 to route traffic to the CloudFront distribution.
+- C. Create an Amazon CloudFront distribution that has the S3 bucket as an origin. Create an AWS Global Accelerator standard accelerator that has the ALB and the CloudFront distribution as endpoints. Create a custom domain name that points to the accelerator DNS name. Use the custom domain name as an endpoint for the web application.
+- D. Create an Amazon CloudFront distribution that has the ALB as an origin. Create an AWS Global Accelerator standard accelerator that has the S3 bucket as an endpoint. Create two domain names. Point one domain name to the CloudFront DNS name for dynamic content. Point the other domain name to the accelerator DNS name for static content. Use the domain names as endpoints for the web application.
+
+**Architecture Diagram:**
+
+```
+ +----------+     +----------------------+     +------------------------+
+ | Route 53 | --> | Amazon CloudFront    | --> | S3 bucket (origin 1)  |
+ | (domain) |     | Distribution         |     | static data            |
+ +----------+     | (multi-origin)       |     +------------------------+
+                  |                      | --> +------------------------+
+                  +----------------------+     | ALB (origin 2)         |
+                                                | dynamic data           |
+                                                +------------------------+
+```
+
+**Correct Answer: A**
+
+**Explanation:** A single CloudFront distribution can have multiple origins — the S3 bucket for static content and the ALB for dynamic content — with path-based behaviors routing each request type to the right origin. CloudFront's edge caching improves performance/latency for both content types, and Route 53 simply routes the company's domain to that one distribution. This is the simplest solution that fully meets the requirement.
+
+- B. Wrong — AWS Global Accelerator does not support Amazon S3 buckets as endpoints (it works with ALBs, NLBs, EC2 instances, and Elastic IPs), so this configuration is not technically valid.
+- C. Wrong — Same issue: Global Accelerator can't use an S3 bucket... this option also incorrectly pairs Global Accelerator with a CloudFront distribution as an endpoint, which isn't a standard supported configuration for this use case.
+- D. Wrong — Global Accelerator doesn't support S3 as an endpoint, and splitting the application across two separate domain names for static vs. dynamic content adds unnecessary complexity compared to one CloudFront distribution with multiple origins.
+
+## Question 33
+
+A company's containerized application runs on an Amazon EC2 instance. The application needs to download security certificates before it can communicate with other business applications. The company wants a highly secure solution to encrypt and decrypt the certificates in near real time. The solution also needs to store data in highly available storage after the data is encrypted.
+
+Which solution will meet these requirements with the LEAST operational overhead?
+
+- A. Create AWS Secrets Manager secrets for encrypted certificates. Manually update the certificates as needed. Control access to the data by using fine-grained IAM access.
+- B. Create an AWS Lambda function that uses the Python cryptography library to receive and perform encryption operations. Store the function in an Amazon S3 bucket.
+- C. Create an AWS Key Management Service (AWS KMS) customer managed key. Allow the EC2 role to use the KMS key for encryption operations. Store the encrypted data on Amazon S3.
+- D. Create an AWS Key Management Service (AWS KMS) customer managed key. Allow the EC2 role to use the KMS key for encryption operations. Store the encrypted data on Amazon Elastic Block Store (Amazon EBS) volumes.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +---------------------------+     +------------------------+
+ | EC2 instance           | --> | AWS KMS customer managed  | --> | Amazon S3              |
+ | (containerized app,    |     | key (encrypt/decrypt via  |     | (encrypted data,       |
+ |  IAM role permission)  |     |  EC2 role permission)     |     |  highly available)     |
+ +------------------------+     +---------------------------+     +------------------------+
+```
+
+**Correct Answer: C**
+
+**Explanation:** AWS KMS provides managed, near-real-time encryption/decryption operations via a simple API call, with the EC2 instance's IAM role granted permission to use the customer managed key — no custom cryptography code to build or maintain. Storing the encrypted data in Amazon S3 satisfies the highly available storage requirement (S3 is designed for 99.999999999% durability across multiple AZs), all with minimal operational overhead.
+
+- A. Wrong — Secrets Manager is designed for storing and rotating secrets like credentials, not for general-purpose near-real-time encryption/decryption of arbitrary certificate data, and "manually update" adds operational overhead.
+- B. Wrong — Building a custom Lambda function with a cryptography library means the company must write, secure, and maintain custom encryption code — far more operational overhead than using KMS's managed encryption API.
+- D. Wrong — EBS volumes are tied to a single Availability Zone and attach to a single instance at a time, which doesn't meet the "highly available storage" requirement as well as S3 does.
+
+## Question 34
+
+A company recently migrated a message processing system to AWS. The system receives messages into an ActiveMQ queue running on an Amazon EC2 instance. Messages are processed by a consumer application running on Amazon EC2. The consumer application processes the messages and writes results to a MySQL database running on Amazon EC2. The company wants this application to be highly available with low operational complexity.
+
+Which architecture offers the HIGHEST availability?
+
+- A. Add a second ActiveMQ server to another Availability Zone. Add an additional consumer EC2 instance in another Availability Zone. Replicate the MySQL database to another Availability Zone.
+- B. Use Amazon MQ with active/standby brokers configured across two Availability Zones. Add an additional consumer EC2 instance in another Availability Zone. Replicate the MySQL database to another Availability Zone.
+- C. Use Amazon MQ with active/standby brokers configured across two Availability Zones. Add an additional consumer EC2 instance in another Availability Zone. Use Amazon RDS for MySQL with Multi-AZ enabled.
+- D. Use Amazon MQ with active/standby brokers configured across two Availability Zones. Add an Auto Scaling group for the consumer EC2 instances across two Availability Zones. Use Amazon RDS for MySQL with Multi-AZ enabled.
+
+**Architecture Diagram:**
+
+```
+ +----------------------------+     +----------------------------+     +---------------------------+
+ | Amazon MQ                 | --> | Auto Scaling group        | --> | Amazon RDS for MySQL     |
+ | active/standby brokers    |     | (consumer EC2 instances,  |     | Multi-AZ (automatic      |
+ | (2 Availability Zones)    |     |  self-healing, 2 AZs)     |     |  failover)                |
+ +----------------------------+     +----------------------------+     +---------------------------+
+```
+
+**Correct Answer: D**
+
+**Explanation:** Every tier needs both multi-AZ redundancy AND automatic recovery to achieve the highest availability: Amazon MQ active/standby handles automatic broker failover; an Auto Scaling group (not just a single extra instance) automatically replaces failed consumer instances across AZs; and RDS for MySQL Multi-AZ provides automatic database failover. This is also lower operational complexity since Amazon MQ and RDS are managed services.
+
+- A. Wrong — Self-managed ActiveMQ, manually added EC2 instances, and manual MySQL replication all require the company to build and maintain failover logic itself, and none of it auto-recovers from failure — much higher operational complexity and lower availability than managed alternatives.
+- B. Wrong — Manually replicating the MySQL database (rather than using RDS Multi-AZ) requires custom replication/failover logic and doesn't provide the same automatic, managed failover as RDS Multi-AZ.
+- C. Wrong — Adding just one additional consumer EC2 instance (instead of an Auto Scaling group) means there's no automatic replacement if that instance or its AZ fails, giving lower availability than a self-healing Auto Scaling group.
+
+## Question 35
+
+A company hosts a website analytics application on a single Amazon EC2 On-Demand Instance. The analytics software is written in PHP and uses a MySQL database. The analytics software, the web server that provides PHP, and the database server are all hosted on the EC2 instance. The application is showing signs of performance degradation during busy times and is presenting 5xx errors. The company needs to make the application scale seamlessly.
+
+Which solution will meet these requirements MOST cost-effectively?
+
+- A. Migrate the database to an Amazon RDS for MySQL DB instance. Create an AMI of the web application. Use the AMI to launch a second EC2 On-Demand Instance. Use an Application Load Balancer to distribute the load to each EC2 instance.
+- B. Migrate the database to an Amazon RDS for MySQL DB instance. Create an AMI of the web application. Use the AMI to launch a second EC2 On-Demand Instance. Use Amazon Route 53 weighted routing to distribute the load across the two EC2 instances.
+- C. Migrate the database to an Amazon Aurora MySQL DB instance. Create an AWS Lambda function to stop the EC2 instance and change the instance type. Create an Amazon CloudWatch alarm to invoke the Lambda function when CPU utilization surpasses 75%.
+- D. Migrate the database to an Amazon Aurora MySQL DB instance. Create an AMI of the web application. Apply the AMI to a launch template. Create an Auto Scaling group with the launch template. Configure the launch template to use a Spot Fleet. Attach an Application Load Balancer to the Auto Scaling group.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +----------------------------+     +------------------------+
+ | Application Load       | --> | Auto Scaling group         | --> | Amazon Aurora MySQL   |
+ | Balancer                |     | (launch template, Spot     |     | DB instance            |
+ |                         |     |  Fleet, scales seamlessly) |     +------------------------+
+ +------------------------+     +----------------------------+
+```
+
+**Correct Answer: D**
+
+**Explanation:** An Auto Scaling group with a launch template automatically adds or removes instances to match demand, giving true seamless scaling that fixed instance counts (A/B) can't provide. Using a Spot Fleet for those instances significantly lowers compute cost, and migrating to Aurora removes the database bottleneck from the single EC2 instance. An ALB in front of the ASG distributes traffic and integrates natively with scaling.
+
+- A. Wrong — Two fixed EC2 instances behind an ALB is more elastic than one instance, but it's a static count, not "scale seamlessly" with demand, and On-Demand pricing costs more than Spot for this scalable pool.
+- B. Wrong — Route 53 weighted routing only splits traffic by fixed percentage weights between two static instances; it doesn't scale capacity up or down and isn't a substitute for an Application Load Balancer with Auto Scaling.
+- C. Wrong — Stopping the instance and changing its instance type (vertical scaling) causes downtime during the resize and doesn't provide seamless, continuous scaling the way horizontally scaling an Auto Scaling group does.
+
+## Question 36
+
+A company wants to build a scalable key management infrastructure to support developers who need to encrypt data in their applications.
+
+What should a solutions architect do to reduce the operational burden?
+
+- A. Use multi-factor authentication (MFA) to protect the encryption keys.
+- B. Use AWS Key Management Service (AWS KMS) to protect the encryption keys.
+- C. Use AWS Certificate Manager (ACM) to create, store, and assign the encryption keys.
+- D. Use an IAM policy to limit the scope of users who have access permissions to protect the encryption keys.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +---------------------------+     +------------------------+
+ | Developers /           | --> | AWS Key Management        | --> | Encrypted application  |
+ | Applications            |     | Service (managed,        |     | data                    |
+ |                        |     |  scalable key store)      |     +------------------------+
+ +------------------------+     +---------------------------+
+```
+
+**Correct Answer: B**
+
+**Explanation:** AWS KMS is a fully managed service purpose-built for creating, storing, and managing encryption keys at scale, with built-in durability, availability, and integration across AWS services and SDKs — removing the operational burden of building and maintaining custom key management infrastructure.
+
+- A. Wrong — MFA is an authentication mechanism for verifying user identity; it doesn't provide key management infrastructure (creation, storage, rotation) for encryption keys.
+- C. Wrong — AWS Certificate Manager is designed for provisioning and managing SSL/TLS certificates, not for general-purpose data encryption key management.
+- D. Wrong — An IAM policy controls access permissions but is not itself a key management infrastructure; it doesn't create, store, or manage encryption keys — it would be used alongside KMS, not instead of it.
+
+## Question 37
+
+A company hosts a data lake on AWS. The data lake consists of data in Amazon S3 and Amazon RDS for PostgreSQL. The company needs a reporting solution that provides data visualization and includes all the data sources within the data lake. Only the company's management team should have full access to all the visualizations. The rest of the company should have only limited access.
+
+Which solution will meet these requirements?
+
+- A. Create an analysis in Amazon QuickSight. Connect all the data sources and create new datasets. Publish dashboards to visualize the data. Share the dashboards with the appropriate IAM roles.
+- B. Create an analysis in Amazon QuickSight. Connect all the data sources and create new datasets. Publish dashboards to visualize the data. Share the dashboards with the appropriate users and groups.
+- C. Create an AWS Glue table and crawler for the data in Amazon S3. Create an AWS Glue extract, transform, and load (ETL) job to produce reports. Publish the reports to Amazon S3. Use S3 bucket policies to limit access to the reports.
+- D. Create an AWS Glue table and crawler for the data in Amazon S3. Use Amazon Athena Federated Query to access data within Amazon RDS for PostgreSQL. Generate reports by using Amazon Athena. Publish the reports to Amazon S3. Use S3 bucket policies to limit access to the reports.
+
+**Architecture Diagram:**
+
+```
+ +------------------+     +----------------------+     +------------------------+
+ | Amazon S3        | --> | Amazon QuickSight    | --> | Dashboards shared with|
+ | Amazon RDS       |     | (analysis, datasets, |     | QuickSight users and  |
+ | (data sources)   |     |  dashboards)          |     | groups (tiered access)|
+ +------------------+     +----------------------+     +------------------------+
+```
+
+**Correct Answer: B**
+
+**Explanation:** QuickSight natively connects to both S3 and RDS for PostgreSQL as data sources and is purpose-built for interactive data visualization. Access to published dashboards is managed through QuickSight's own users and groups model — not IAM roles — allowing the management team to be granted full access while everyone else gets limited, tiered access to the same dashboards.
+
+- A. Wrong — QuickSight dashboard sharing is controlled through QuickSight users and groups, not directly through IAM roles; IAM governs AWS account-level permissions, not dashboard-level visualization access.
+- C. Wrong — This produces static reports via a Glue ETL job rather than interactive data visualizations, and it doesn't include the RDS PostgreSQL data source at all, missing a full data lake reporting requirement.
+- D. Wrong — While Athena Federated Query can incorporate the RDS data, the result is still static reports published to S3 rather than interactive visualizations, and S3 bucket policies provide coarse-grained access control, not the tiered, per-user/group dashboard access QuickSight provides.
+
+## Question 38
+
+A company runs its media rendering application on premises. The company wants to reduce storage costs and has moved all data to Amazon S3. The on-premises rendering application needs low-latency access to storage.
+
+The company needs to design a storage solution for the application. The storage solution must maintain the desired application performance.
+
+Which storage solution will meet these requirements in the MOST cost-effective way?
+
+- A. Use Mountpoint for Amazon S3 to access the data in Amazon S3 for the on-premises application.
+- B. Configure an Amazon S3 File Gateway to provide storage for the on-premises application.
+- C. Copy the data from Amazon S3 to Amazon FSx for Windows File Server. Configure an Amazon FSx File Gateway to provide storage for the on-premises application.
+- D. Configure an on-premises file server. Use the Amazon S3 API to connect to S3 storage. Configure the application to access the storage from the on-premises file server.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +---------------------------+     +------------------------+
+ | On-premises rendering  | --> | S3 File Gateway           | --> | Amazon S3              |
+ | application            |     | (local low-latency cache, |     | (durable, low-cost    |
+ |                         |     |  backed by S3)             |     |  origin storage)      |
+ +------------------------+     +---------------------------+     +------------------------+
+```
+
+**Correct Answer: B**
+
+**Explanation:** An S3 File Gateway is a virtual appliance that presents a local file share to the on-premises application while transparently caching frequently accessed data locally for low-latency access, storing the full dataset durably and cost-effectively in S3 behind the scenes — exactly matching "data already in S3, but app needs low-latency access."
+
+- A. Wrong — Mountpoint for Amazon S3 is designed to run on AWS compute (like EC2) to mount S3 as a local file system for cloud-based workloads; it isn't intended for on-premises applications needing local caching for low latency.
+- C. Wrong — Copying data from S3 into FSx for Windows File Server duplicates the storage (increasing cost) and adds ongoing synchronization complexity, unlike an S3 File Gateway which keeps S3 as the single source of truth with local caching.
+- D. Wrong — Building a custom on-premises file server that calls the S3 API directly means every file access potentially crosses the internet with S3 API latency, and the company would have to build and maintain caching logic itself — far more cost and complexity than the managed S3 File Gateway.
+
+## Question 39
+
+A digital image processing company wants to migrate its on-premises monolithic application to the AWS Cloud. The company processes thousands of images and generates large files as part of the processing workflow.
+
+The company needs a solution to manage the growing number of image processing jobs. The solution must also reduce the manual tasks in the image processing workflow. The company does not want to manage the underlying infrastructure of the solution.
+
+Which solution will meet these requirements with the LEAST operational overhead?
+
+- A. Use Amazon Elastic Container Service (Amazon ECS) with Amazon EC2 Spot Instances to process the images. Configure Amazon Simple Queue Service (Amazon SQS) to orchestrate the workflow. Store the processed files in Amazon Elastic File System (Amazon EFS).
+- B. Use AWS Batch jobs to process the images. Use AWS Step Functions to orchestrate the workflow. Store the processed files in an Amazon S3 bucket.
+- C. Use AWS Lambda functions and Amazon EC2 Spot Instances to process the images. Store the processed files in Amazon FSx.
+- D. Deploy a group of Amazon EC2 instances to process the images. Use AWS Step Functions to orchestrate the workflow. Store the processed files in an Amazon Elastic Block Store (Amazon EBS) volume.
+
+**Architecture Diagram:**
+
+```
+ +------------------+     +----------------------+     +------------------------+
+ | AWS Step         | --> | AWS Batch jobs        | --> | Amazon S3 bucket       |
+ | Functions        |     | (serverless compute,  |     | (processed image      |
+ | (orchestrates    |     |  no infra to manage)  |     |  files)                |
+ |  workflow)       |     +----------------------+     +------------------------+
+ +------------------+
+```
+
+**Correct Answer: B**
+
+**Explanation:** AWS Batch dynamically provisions the optimal compute (including Fargate, so no servers to manage) to run image processing jobs at any scale, removing infrastructure management entirely. AWS Step Functions orchestrates the multi-step workflow declaratively, eliminating manual coordination between steps. S3 is the natural, durable, low-management store for the large processed files.
+
+- A. Wrong — Using ECS with EC2 Spot Instances still requires managing the underlying EC2 instances/cluster capacity, which conflicts with "does not want to manage the underlying infrastructure."
+- C. Wrong — Managing EC2 Spot Instances directly still requires infrastructure management, and Amazon FSx is a shared file system typically used for specific workloads (e.g., Windows/HPC), not the simplest or most cost-effective store for this use case.
+- D. Wrong — Deploying and managing a group of EC2 instances is exactly the infrastructure management the company wants to avoid, and EBS volumes are attached to a single instance, not well-suited as a scalable output store for a distributed job workflow.
+
+## Question 40
+
+A company recently migrated to AWS and wants to implement a solution to protect the traffic that flows in and out of the production VPC. The company had an inspection server in its on-premises data center. The inspection server performed specific operations such as traffic flow inspection and traffic filtering. The company wants to have the same functionalities in the AWS Cloud.
+
+Which solution will meet these requirements?
+
+- A. Use Amazon GuardDuty for traffic inspection and traffic filtering in the production VPC.
+- B. Use Traffic Mirroring to mirror traffic from the production VPC for traffic inspection and filtering.
+- C. Use AWS Network Firewall to create the required rules for traffic inspection and traffic filtering for the production VPC.
+- D. Use AWS Firewall Manager to create the required rules for traffic inspection and traffic filtering for the production VPC.
+
+**Architecture Diagram:**
+
+```
+ +------------------+     +----------------------------+     +------------------------+
+ | Internet /       | <-> | AWS Network Firewall      | <-> | Production VPC        |
+ | on-prem traffic  |     | (stateful inspection &     |     | (resources)            |
+ |                  |     |  filtering rules)          |     +------------------------+
+ +------------------+     +----------------------------+
+```
+
+**Correct Answer: C**
+
+**Explanation:** AWS Network Firewall is a managed, stateful network firewall service designed specifically to inspect and filter traffic flowing in and out of a VPC — directly replacing the on-premises inspection server's traffic flow inspection and filtering functions.
+
+- A. Wrong — Amazon GuardDuty is a threat-detection service that analyzes logs and events for malicious activity; it doesn't perform inline traffic inspection/filtering of network flows.
+- B. Wrong — Traffic Mirroring copies network traffic to a monitoring/analysis target for out-of-band inspection (e.g., by third-party tools); it doesn't itself filter or block traffic in-line.
+- D. Wrong — AWS Firewall Manager centrally manages firewall rules (such as WAF or Network Firewall policies) across multiple accounts; it's a management layer, not the traffic inspection/filtering engine itself — Network Firewall is the underlying service needed.
+
+## Question 41
+
+A company is building a containerized application on premises and decides to move the application to AWS. The application will have thousands of users soon after it is deployed. The company is unsure how to manage the deployment of containers at scale. The company needs to deploy the containerized application in a highly available architecture that minimizes operational overhead.
+
+Which solution will meet these requirements?
+
+- A. Store container images in an Amazon Elastic Container Registry (Amazon ECR) repository. Use an Amazon Elastic Container Service (Amazon ECS) cluster with the AWS Fargate launch type to run the containers. Use target tracking to scale automatically based on demand.
+- B. Store container images in an Amazon Elastic Container Registry (Amazon ECR) repository. Use an Amazon Elastic Container Service (Amazon ECS) cluster with the Amazon EC2 launch type to run the containers. Use target tracking to scale automatically based on demand.
+- C. Store container images in a repository that runs on an Amazon EC2 instance. Run the containers on EC2 instances that are spread across multiple Availability Zones. Monitor the average CPU utilization in Amazon CloudWatch. Launch new EC2 instances as needed.
+- D. Create an Amazon EC2 Amazon Machine Image (AMI) that contains the container image. Launch EC2 instances in an Auto Scaling group across multiple Availability Zones. Use an Amazon CloudWatch alarm to scale out EC2 instances when the average CPU utilization threshold is breached.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +----------------------------+     +------------------------+
+ | Amazon ECR             | --> | Amazon ECS cluster        | --> | AWS Fargate            |
+ | (container images)     |     | (target tracking scaling) |     | (serverless, no        |
+ |                         |     |                            |     |  servers to manage)   |
+ +------------------------+     +----------------------------+     +------------------------+
+```
+
+**Correct Answer: A**
+
+**Explanation:** ECR is the natural managed registry for container images, and ECS with the Fargate launch type runs containers without provisioning or managing any underlying EC2 instances — the lowest operational overhead for "unsure how to manage deployment of containers at scale." Target tracking scaling then automatically adjusts capacity to demand, and ECS spreads tasks across Availability Zones for high availability.
+
+- B. Wrong — The EC2 launch type still requires the company to provision, patch, and scale the underlying EC2 instances/cluster capacity, adding operational overhead that Fargate avoids.
+- C. Wrong — Running a self-managed container repository on an EC2 instance and manually launching new instances based on CPU is a largely manual, custom-built solution with significant operational overhead compared to managed ECR/ECS/Fargate.
+- D. Wrong — Baking the container image into an AMI and scaling raw EC2 instances abandons the container orchestration benefits (ECS) entirely and requires managing AMI updates and EC2 infrastructure directly — high operational overhead.
+
+## Question 42
+
+A company has a three-tier web application that processes orders from customers. The web tier consists of Amazon EC2 instances behind an Application Load Balancer. The processing tier consists of EC2 instances. The company decoupled the web tier and processing tier by using Amazon Simple Queue Service (Amazon SQS). The storage layer uses Amazon DynamoDB.
+
+At peak times, some users report order processing delays and stalls. The company has noticed that during these delays, the EC2 instances are running at 100% CPU usage, and the SQS queue fills up. The peak times are variable and unpredictable.
+
+The company needs to improve the performance of the application.
+
+Which solution will meet these requirements?
+
+- A. Use scheduled scaling for Amazon EC2 Auto Scaling to scale out the processing tier instances for the duration of peak usage times. Use the CPU Utilization metric to determine when to scale.
+- B. Use Amazon ElastiCache for Redis in front of the DynamoDB backend tier. Use target utilization as a metric to determine when to scale.
+- C. Add an Amazon CloudFront distribution to cache the responses for the web tier. Use HTTP latency as a metric to determine when to scale.
+- D. Use an Amazon EC2 Auto Scaling target tracking policy to scale out the processing tier instances. Use the ApproximateNumberOfMessages attribute to determine when to scale.
+
+**Architecture Diagram:**
+
+```
+ +------------------+     +----------------------+     +------------------------+
+ | Amazon SQS Queue | --> | Auto Scaling group   | --> | Processing tier EC2   |
+ | (backlog metric: |     | (target tracking on  |     | instances (scale out  |
+ | ApproximateNumber|     |  queue depth)         |     |  as backlog grows)    |
+ | OfMessages)       |     +----------------------+     +------------------------+
+ +------------------+
+```
+
+**Correct Answer: D**
+
+**Explanation:** The bottleneck is the processing tier being CPU-saturated while the queue backs up, and peak times are variable/unpredictable — so scaling must react dynamically to actual load, not a fixed schedule. A target tracking policy driven by the SQS ApproximateNumberOfMessages attribute scales the processing tier out precisely when the backlog grows, directly addressing the observed bottleneck.
+
+- A. Wrong — Scheduled scaling requires known, fixed times, but the peak times here are explicitly "variable and unpredictable," so a schedule can't reliably anticipate them.
+- B. Wrong — Adding a cache in front of DynamoDB doesn't address the described bottleneck, which is 100% CPU usage on the processing tier EC2 instances and a backed-up SQS queue, not a DynamoDB read/write performance issue.
+- C. Wrong — Caching web tier responses with CloudFront doesn't help the processing tier, which is where the CPU saturation and queue backlog are actually occurring.
