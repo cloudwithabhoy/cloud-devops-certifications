@@ -1378,3 +1378,296 @@ Which solution will meet these requirements?
 - A. Wrong — Scheduled scaling requires known, fixed times, but the peak times here are explicitly "variable and unpredictable," so a schedule can't reliably anticipate them.
 - B. Wrong — Adding a cache in front of DynamoDB doesn't address the described bottleneck, which is 100% CPU usage on the processing tier EC2 instances and a backed-up SQS queue, not a DynamoDB read/write performance issue.
 - C. Wrong — Caching web tier responses with CloudFront doesn't help the processing tier, which is where the CPU saturation and queue backlog are actually occurring.
+
+## Question 43
+
+A company wants to migrate its on-premises data center to AWS. According to the company's compliance requirements, the company can use only the ap-northeast-3 Region. Company administrators are not permitted to connect VPCs to the internet.
+
+Which solutions will meet these requirements? (Choose two.)
+
+- A. Use AWS Control Tower to implement data residency guardrails to deny internet access and deny access to all AWS Regions except ap-northeast-3.
+- B. Use rules in AWS WAF to prevent internet access. Deny access to all AWS Regions except ap-northeast-3 in the AWS account settings.
+- C. Use AWS Organizations to configure service control policies (SCPs) that prevent VPCs from gaining internet access. Deny access to all AWS Regions except ap-northeast-3.
+- D. Create an outbound rule for the network ACL in each VPC to deny all traffic from 0.0.0.0/0. Create an IAM policy for each user to prevent the use of any AWS Region other than ap-northeast-3.
+- E. Use AWS Config to activate managed rules to detect and alert for internet gateways and to detect and alert for new resources deployed outside of ap-northeast-3.
+
+**Architecture Diagram:**
+
+```
+ +--------------------------------------------------------------+
+ | AWS Organizations (management account)                        |
+ |                                                                |
+ |   +----------------------+     +--------------------------+  |
+ |   | Control Tower        |     | Service Control Policies |  |
+ |   | data residency        |     | - deny VPC internet      |  |
+ |   | guardrails             |     |   access                  |  |
+ |   | - deny internet access|     | - deny all Regions except|  |
+ |   | - deny all Regions    |     |   ap-northeast-3          |  |
+ |   |   except ap-northeast-3|    +--------------------------+  |
+ |   +----------------------+                                    |
+ +--------------------------------------------------------------+
+                          |  applies preventively to
+                          v
+              +--------------------------+
+              | Member account VPCs      |
+              | (ap-northeast-3 only,    |
+              |  no internet gateway)    |
+              +--------------------------+
+```
+
+**Correct Answer: A, C**
+
+**Explanation:** The requirements demand *preventive*, account-wide guardrails — not just detection — for both internet connectivity and Region usage. AWS Control Tower's data residency guardrails and AWS Organizations SCPs both enforce these restrictions proactively at the organization/account level, blocking VPCs from gaining internet access and blocking use of any Region other than ap-northeast-3 regardless of what individual administrators try to configure.
+
+- B. Wrong — AWS WAF filters HTTP(S) requests to web applications; it has no capability to prevent a VPC from connecting to the internet or to restrict which AWS Regions an account can use.
+- D. Wrong — A network ACL outbound deny rule must be configured per VPC (and per subnet) and doesn't stop someone from creating a new VPC with an internet gateway; per-user IAM policies restricting Regions must be applied to every user/role individually and don't prevent an administrator with sufficient permissions from changing or bypassing them, so neither control is a durable, organization-wide guardrail.
+- E. Wrong — AWS Config managed rules only detect and alert on noncompliant resources after the fact; they don't prevent internet gateways from being created or prevent deployments outside ap-northeast-3, so this is a detective control, not the required preventive one.
+
+## Question 44
+
+A gaming company is designing a highly available architecture. The application runs on a modified Linux kernel and supports only UDP-based traffic. The company needs the front-end tier to provide the best possible user experience. That tier must have low latency, route traffic to the nearest edge location, and provide static IP addresses for entry into the application endpoints.
+
+What should a solutions architect do to meet these requirements?
+
+- A. Configure Amazon Route 53 to forward requests to an Application Load Balancer. Use AWS Lambda for the application in AWS Application Auto Scaling.
+- B. Configure Amazon CloudFront to forward requests to a Network Load Balancer. Use AWS Lambda for the application in an AWS Application Auto Scaling group.
+- C. Configure AWS Global Accelerator to forward requests to a Network Load Balancer. Use Amazon EC2 instances for the application in an EC2 Auto Scaling group.
+- D. Configure Amazon API Gateway to forward requests to an Application Load Balancer. Use Amazon EC2 instances for the application in an EC2 Auto Scaling group.
+
+**Architecture Diagram:**
+
+```
+ +-----------+    UDP    +----------------------+    static IP   +------------------------+
+ | Players   | --------> | AWS Global Accelerator| -------------> | Network Load Balancer |
+ | (nearest  |  low       | (anycast IPs, routes  |                +------------------------+
+ |  edge)    |  latency   |  to nearest edge)     |                          |
+ +-----------+           +----------------------+                           v
+                                                                  +------------------------+
+                                                                  | EC2 Auto Scaling group |
+                                                                  | (modified Linux kernel)|
+                                                                  +------------------------+
+```
+
+**Correct Answer: C**
+
+**Explanation:** AWS Global Accelerator supports both TCP and UDP traffic, provides static anycast IP addresses, and automatically routes each user to the nearest AWS edge location for low latency — matching all three front-end requirements. It pairs with a Network Load Balancer, which operates at the connection level and can forward UDP traffic to backend targets. Because the application requires a modified Linux kernel, it must run on EC2 instances (not Lambda, which doesn't allow custom kernels), so an EC2 Auto Scaling group is the correct compute layer.
+
+- A. Wrong — Route 53 and an Application Load Balancer operate at the HTTP/HTTPS layer and don't support UDP traffic; Lambda also can't run a modified Linux kernel.
+- B. Wrong — CloudFront is designed for HTTP/HTTPS content delivery and does not support UDP-based traffic; Lambda again can't host a modified kernel.
+- D. Wrong — API Gateway and Application Load Balancers work with HTTP/HTTPS/WebSocket traffic, not UDP, so they cannot carry this application's traffic at all.
+
+## Question 45
+
+A company runs its two-tier ecommerce website on AWS. The web tier consists of a load balancer that sends traffic to Amazon EC2 instances. The database tier uses an Amazon RDS DB instance. The EC2 instances and the RDS DB instance should not be exposed to the public internet. The EC2 instances require internet access to complete payment processing of orders through a third-party web service. The application must be highly available.
+
+Which combination of configuration options will meet these requirements? (Choose two.)
+
+- A. Use an Auto Scaling group to launch the EC2 instances in private subnets. Deploy an RDS Multi-AZ DB instance in private subnets.
+- B. Configure a VPC with two private subnets and two NAT gateways across two Availability Zones. Deploy an Application Load Balancer in the private subnets.
+- C. Use an Auto Scaling group to launch the EC2 instances in public subnets across two Availability Zones. Deploy an RDS Multi-AZ DB instance in private subnets.
+- D. Configure a VPC with one public subnet, one private subnet, and two NAT gateways across two Availability Zones. Deploy an Application Load Balancer in the public subnet.
+- E. Configure a VPC with two public subnets, two private subnets, and two NAT gateways across two Availability Zones. Deploy an Application Load Balancer in the public subnets.
+
+**Architecture Diagram:**
+
+```
+                              Internet
+                                 |
+                                 v
+        +--------------------------------------------------+
+        | Public subnets (AZ-a, AZ-b)                       |
+        |   +--------------------+     +------------------+ |
+        |   | Application Load   |     | NAT Gateway (x2) | |
+        |   | Balancer           |     +------------------+ |
+        |   +--------------------+               |          |
+        +---------------|--------------------------|--------+
+                         v                          v (outbound only)
+        +--------------------------------------------------+
+        | Private subnets (AZ-a, AZ-b)                      |
+        |   +----------------------+   +------------------+ |
+        |   | EC2 Auto Scaling grp |   | RDS Multi-AZ     | |
+        |   | (payment processing  |   | DB instance      | |
+        |   |  via NAT)            |   +------------------+ |
+        |   +----------------------+                        |
+        +--------------------------------------------------+
+```
+
+**Correct Answer: A, E**
+
+**Explanation:** The EC2 instances and RDS instance must stay private while still being highly available and, for EC2, able to reach the internet outbound. Option A keeps EC2 in an Auto Scaling group and RDS in Multi-AZ, both inside private subnets — satisfying "not exposed to the public internet" and high availability for compute and database. Option E completes the picture at the network level: two public subnets (for an internet-facing ALB and the NAT gateways) and two private subnets across two AZs, with two NAT gateways giving the private EC2 instances outbound internet access for payment processing while the ALB in the public subnets receives internet traffic and forwards it inward.
+
+- B. Wrong — An Application Load Balancer that receives traffic from the internet must sit in public subnets; placing it in private subnets prevents it from being reachable as the internet-facing entry point.
+- C. Wrong — Launching the EC2 instances in public subnets exposes them directly to the public internet, violating the requirement that they not be publicly exposed.
+- D. Wrong — A single public subnet and single private subnet cannot span two Availability Zones, so this configuration fails the high-availability requirement despite provisioning two NAT gateways.
+
+## Question 46
+
+A company hosts its enterprise resource planning (ERP) system in the us-east-1 Region. The system runs on Amazon EC2 instances. Customers use a public API that is hosted on the EC2 instances to exchange information with the ERP system. International customers report slow API response times from their data centers.
+
+Which solution will improve response times for the international customers MOST cost-effectively?
+
+- A. Create an AWS Direct Connect connection that has a public virtual interface (VIF) to provide connectivity from each customer's data center to us-east-1. Route customer API requests by using a Direct Connect gateway to the ERP system API.
+- B. Set up an Amazon CloudFront distribution in front of the API. Configure the CachingOptimized managed cache policy to provide improved cache efficiency.
+- C. Set up AWS Global Accelerator. Configure listeners for the necessary ports. Configure endpoint groups for the appropriate Regions to distribute traffic. Create an endpoint in the group for the API.
+- D. Use AWS Site-to-Site VPN to establish dedicated VPN tunnels between Regions and customer networks. Route traffic to the API over the VPN connections.
+
+**Architecture Diagram:**
+
+```
+ +----------------------+      +--------------------------+      +----------------------+
+ | International         | ---> | AWS Global Accelerator   | ---> | EC2 instances (API)  |
+ | customer data centers |      | (anycast IPs, routes over|      | us-east-1             |
+ |                        |      |  AWS global network to    |      +----------------------+
+ |                        |      |  nearest healthy endpoint)|
+ +----------------------+      +--------------------------+
+```
+
+**Correct Answer: C**
+
+**Explanation:** AWS Global Accelerator routes each customer's API traffic onto the AWS global network at the nearest edge location, reducing the number of internet hops and improving response time for international customers reaching a single-Region API — all without provisioning any dedicated per-customer network connections, making it the most cost-effective option.
+
+- A. Wrong — Direct Connect requires a separate dedicated physical connection per customer data center, which is expensive to provision and operate for every international customer, making it far from the most cost-effective choice.
+- B. Wrong — The API is used to exchange information with the ERP system, meaning requests and responses are dynamic and not cacheable; a CachingOptimized policy provides little to no benefit for this kind of non-cacheable, transactional traffic.
+- D. Wrong — Site-to-Site VPN tunnels are meant for secure private connectivity, not for improving performance, and standard VPN traffic still traverses the public internet end-to-end, so it wouldn't meaningfully reduce latency.
+
+## Question 47
+
+A company runs workloads on AWS. The company needs to connect to a service from an external provider. The service is hosted in the provider's VPC. According to the company's security team, the connectivity must be private and must be restricted to the target service. The connection must be initiated only from the company's VPC.
+
+Which solution will meet these requirements?
+
+- A. Create a VPC peering connection between the company's VPC and the provider's VPC. Update the route table to connect to the target service.
+- B. Ask the provider to create a virtual private gateway in its VPC. Use AWS PrivateLink to connect to the target service.
+- C. Create a NAT gateway in a public subnet of the company's VPC. Update the route table to connect to the target service.
+- D. Ask the provider to create a VPC endpoint for the target service. Use AWS PrivateLink to connect to the target service.
+
+**Architecture Diagram:**
+
+```
+ +----------------------+                                   +----------------------+
+ | Company's VPC        |                                   | Provider's VPC       |
+ |                       |   AWS PrivateLink (private link)  |                       |
+ |  +-----------------+ | --------------------------------> | +-----------------+  |
+ |  | Interface VPC   | |     connection initiated only     | | VPC endpoint    |  |
+ |  | endpoint        | |     from company's VPC            | | service (target |  |
+ |  +-----------------+ |                                   | | service only)   |  |
+ +----------------------+                                   +----------------------+
+```
+
+**Correct Answer: D**
+
+**Explanation:** AWS PrivateLink connects to a specific VPC endpoint service that the provider exposes, so access is scoped only to that target service over private AWS network connectivity, and the interface endpoint in the company's VPC is what initiates the connection — matching all three requirements: private, restricted to the target service, and initiated only from the company's side.
+
+- A. Wrong — VPC peering connects the two entire VPCs and their route tables, giving broad reachability rather than restricting access to just the target service.
+- B. Wrong — A virtual private gateway is the VPN/Direct Connect endpoint on the AWS side of a VPC, not a component used to expose a service via PrivateLink; PrivateLink requires the provider to create a VPC endpoint service (backed by a Network Load Balancer), not a virtual private gateway.
+- C. Wrong — A NAT gateway provides outbound internet access for private subnets; it doesn't provide private, restricted connectivity to a specific service in another VPC.
+
+## Question 48
+
+A company wants to use high performance computing (HPC) infrastructure on AWS for financial risk modeling. The company's HPC workloads run on Linux. Each HPC workflow runs on hundreds of Amazon EC2 Spot Instances, is short-lived, and generates thousands of output files that are ultimately stored in persistent storage for analytics and long-term future use.
+
+The company seeks a cloud storage solution that permits the copying of on-premises data to long-term persistent storage to make data available for processing by all EC2 instances. The solution should also be a high performance file system that is integrated with persistent storage to read and write datasets and output files.
+
+Which combination of AWS services meets these requirements?
+
+- A. Amazon FSx for Lustre integrated with Amazon S3
+- B. Amazon FSx for Windows File Server integrated with Amazon S3
+- C. Amazon S3 Glacier integrated with Amazon Elastic Block Store (Amazon EBS)
+- D. Amazon S3 bucket with a VPC endpoint integrated with an Amazon Elastic Block Store (Amazon EBS) General Purpose SSD (gp2) volume
+
+**Architecture Diagram:**
+
+```
+ +------------------+     copy on-prem data     +----------------------+
+ | On-premises data | -------------------------> | Amazon S3            |
+ | center            |                            | (long-term          |
+ +------------------+                            |  persistent storage)|
+                                                   +----------------------+
+                                                              |
+                                                              | linked file system
+                                                              v
+                                                   +----------------------+
+                                                   | Amazon FSx for       |
+                                                   | Lustre (high-perf   |
+                                                   | file system)         |
+                                                   +----------------------+
+                                                              |
+                                                              v
+                                                   +----------------------+
+                                                   | Hundreds of EC2 Spot |
+                                                   | Instances (HPC,      |
+                                                   | Linux, short-lived)  |
+                                                   +----------------------+
+```
+
+**Correct Answer: A**
+
+**Explanation:** Amazon FSx for Lustre is a high-performance, Linux-compatible parallel file system purpose-built for HPC workloads, and it natively links to an Amazon S3 bucket, transparently presenting S3 objects as files and writing new output files back to S3 for long-term persistent storage — exactly matching the requirement for a high-performance file system integrated with persistent storage across hundreds of short-lived Spot Instances.
+
+- B. Wrong — Amazon FSx for Windows File Server is built for Windows-based SMB workloads, not Linux HPC file systems, and it does not integrate with S3 the way FSx for Lustre does.
+- C. Wrong — S3 Glacier is designed for infrequently accessed archival data with long retrieval times, and EBS volumes are attached to a single EC2 instance at a time, so this pairing doesn't provide a shared, high-performance file system for hundreds of concurrent HPC instances.
+- D. Wrong — An EBS gp2 volume can only attach to one EC2 instance (or a small number via Multi-Attach for io1/io2), so it cannot serve as a shared high-performance file system accessible to hundreds of EC2 Spot Instances simultaneously.
+
+## Question 49
+
+A company recently started using Amazon Aurora as the data store for its global ecommerce application. When large reports are run, developers report that the ecommerce application is performing poorly. After reviewing metrics in Amazon CloudWatch, a solutions architect finds that the ReadIOPS and CPUUtilization metrics are spiking when monthly reports run.
+
+What is the MOST cost-effective solution?
+
+- A. Migrate the monthly reporting to Amazon Redshift.
+- B. Migrate the monthly reporting to an Aurora Replica.
+- C. Migrate the Aurora database to a larger instance class.
+- D. Increase the Provisioned IOPS on the Aurora instance.
+
+**Architecture Diagram:**
+
+```
+ +----------------------+     writes     +------------------------+
+ | Ecommerce application| -------------> | Aurora primary instance |
+ +----------------------+                +------------------------+
+                                                    |
+                                                    | replication
+                                                    v
+                                          +------------------------+
+                                          | Aurora Replica          |
+                                          | (handles monthly report |
+                                          |  read traffic)          |
+                                          +------------------------+
+```
+
+**Correct Answer: B**
+
+**Explanation:** The reporting workload is read-heavy and competes with the production application for the same primary instance's CPU and I/O, as shown by ReadIOPS and CPUUtilization spiking together. Routing the monthly reports to an Aurora Replica offloads that read traffic onto a replica that Aurora already keeps in sync at low cost (billed as a normal Aurora instance, no separate data warehouse or migration required), making it the most cost-effective fix.
+
+- A. Wrong — Migrating to Amazon Redshift requires standing up and maintaining an entirely separate data warehouse and an ETL/migration pipeline, which is a much larger cost and operational effort than simply reading from an existing Aurora Replica.
+- C. Wrong — Migrating to a larger instance class increases cost continuously to handle a periodic (monthly) spike, paying for capacity that sits idle most of the time.
+- D. Wrong — Increasing Provisioned IOPS raises ongoing cost to solve a problem that is really about workload contention on a single instance, not a fundamental lack of available IOPS capacity.
+
+## Question 50
+
+A large media company hosts a web application on AWS. The company wants to start caching confidential media files so that users around the world will have reliable access to the files. The content is stored in Amazon S3 buckets. The company must deliver the content quickly, regardless of where the requests originate geographically.
+
+Which solution will meet these requirements?
+
+- A. Use AWS DataSync to connect the S3 buckets to the web application.
+- B. Deploy AWS Global Accelerator to connect the S3 buckets to the web application.
+- C. Deploy Amazon CloudFront to connect the S3 buckets to CloudFront edge servers.
+- D. Use Amazon Simple Queue Service (Amazon SQS) to connect the S3 buckets to the web application.
+
+**Architecture Diagram:**
+
+```
+ +--------------------+     origin     +----------------------+     cached     +------------------+
+ | Amazon S3 buckets  | -------------> | Amazon CloudFront    | -------------> | Users worldwide  |
+ | (confidential media|                | (edge server cache)  |                | (fast, reliable  |
+ |  files)             |                +----------------------+                |  access)          |
+ +--------------------+                                                        +------------------+
+```
+
+**Correct Answer: C**
+
+**Explanation:** Amazon CloudFront is a content delivery network that caches S3-origin content at edge locations around the world, so requests are served from the nearest edge server rather than traveling back to the origin bucket every time — delivering the confidential media quickly regardless of where users are located, while still supporting signed URLs/cookies to keep the content restricted to authorized users.
+
+- A. Wrong — AWS DataSync is a data transfer service for moving/syncing data between on-premises storage and AWS (or between AWS storage services); it is not a caching or content-delivery mechanism for end users.
+- B. Wrong — AWS Global Accelerator improves network performance by routing traffic over the AWS global network to an application endpoint, but it does not cache content at edge locations the way CloudFront does, so it doesn't reduce latency for repeatedly requested static media the way a CDN cache would.
+- D. Wrong — Amazon SQS is a message queuing service for decoupling application components; it has no role in caching or delivering media file content to geographically distributed users.
