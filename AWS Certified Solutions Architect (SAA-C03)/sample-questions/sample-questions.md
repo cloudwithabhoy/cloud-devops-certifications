@@ -1671,3 +1671,782 @@ Which solution will meet these requirements?
 - A. Wrong — AWS DataSync is a data transfer service for moving/syncing data between on-premises storage and AWS (or between AWS storage services); it is not a caching or content-delivery mechanism for end users.
 - B. Wrong — AWS Global Accelerator improves network performance by routing traffic over the AWS global network to an application endpoint, but it does not cache content at edge locations the way CloudFront does, so it doesn't reduce latency for repeatedly requested static media the way a CDN cache would.
 - D. Wrong — Amazon SQS is a message queuing service for decoupling application components; it has no role in caching or delivering media file content to geographically distributed users.
+
+## Question 51
+
+A company wants to migrate its existing on-premises monolithic application to AWS. The company wants to keep as much of the front-end code and the backend code as possible. However, the company wants to break the application into smaller applications. A different team will manage each application. The company needs a highly scalable solution that minimizes operational overhead.
+
+Which solution will meet these requirements?
+
+- A. Host the application on AWS Lambda. Integrate the application with Amazon API Gateway.
+- B. Host the application with AWS Amplify. Connect the application to an Amazon API Gateway API that is integrated with AWS Lambda.
+- C. Host the application on Amazon EC2 instances. Set up an Application Load Balancer with EC2 instances in an Auto Scaling group as targets.
+- D. Host the application on Amazon Elastic Container Service (Amazon ECS). Set up an Application Load Balancer with Amazon ECS as the target.
+
+**Architecture Diagram:**
+
+```
+                         +------------------------+
+                         | Application Load        |
+                         | Balancer                 |
+                         +------------------------+
+                              |         |
+                 -------------          -------------
+                 v                                    v
+     +----------------------+              +----------------------+
+     | ECS Service (Team A) |              | ECS Service (Team B) |
+     | containerized backend|              | containerized backend|
+     +----------------------+              +----------------------+
+```
+
+**Correct Answer: D**
+
+**Explanation:** Containerizing the existing monolith into services on Amazon ECS preserves most of the existing front-end and backend code (it just needs to be packaged into containers, not rewritten), while still allowing the application to be split into independently deployable services that separate teams can own. ECS with an Application Load Balancer scales each service independently and, especially with the Fargate launch type, minimizes the operational overhead of managing servers.
+
+- A. Wrong — Moving to AWS Lambda requires refactoring the application into individual function handlers that fit Lambda's execution model, which conflicts with the goal of keeping as much of the existing front-end and backend code as possible.
+- B. Wrong — This approach also requires rewriting the backend as discrete Lambda functions behind API Gateway, the same invasive refactor problem as option A, and AWS Amplify is oriented around front-end/static hosting rather than preserving an existing backend as-is.
+- C. Wrong — Hosting on EC2 instances with an Auto Scaling group can preserve the existing code, but the company still has to patch, manage, and scale the underlying instances itself, which carries more operational overhead than a container platform.
+
+## Question 52
+
+A company is preparing to deploy a new serverless workload. A solutions architect must use the principle of least privilege to configure permissions that will be used to run an AWS Lambda function. An Amazon EventBridge (Amazon CloudWatch Events) rule will invoke the function.
+
+Which solution meets these requirements?
+
+- A. Add an execution role to the function with lambda:InvokeFunction as the action and * as the principal.
+- B. Add an execution role to the function with lambda:InvokeFunction as the action and Service: lambda.amazonaws.com as the principal.
+- C. Add a resource-based policy to the function with lambda:* as the action and Service: events.amazonaws.com as the principal.
+- D. Add a resource-based policy to the function with lambda:InvokeFunction as the action and Service: events.amazonaws.com as the principal.
+
+**Architecture Diagram:**
+
+```
+ +----------------------+   lambda:InvokeFunction   +----------------------+
+ | Amazon EventBridge   | ------------------------> | AWS Lambda function  |
+ | rule                 |   (resource-based policy, |                       |
+ | principal: this rule)|    principal: events.     |                       |
+ +----------------------+    amazonaws.com)          +----------------------+
+```
+
+**Correct Answer: D**
+
+**Explanation:** A Lambda function is invoked by another AWS service through a resource-based policy attached directly to the function, not through the function's own execution role (which governs what the function itself can access). Scoping the policy's action to only lambda:InvokeFunction and the principal to only events.amazonaws.com grants EventBridge exactly the permission it needs and nothing more, satisfying least privilege.
+
+- A. Wrong — An execution role controls what the function can do when it runs, not who is allowed to invoke it; it's also the wrong policy type for granting an external service invoke permission, and using * as the principal would allow anyone to invoke the function.
+- B. Wrong — This again attaches the permission to the execution role instead of a resource-based policy, and lambda.amazonaws.com is the Lambda service principal, not EventBridge, so it wouldn't grant EventBridge the ability to invoke the function.
+- C. Wrong — Using lambda:* grants every Lambda action (including management actions like UpdateFunctionCode or DeleteFunction) instead of just the invoke permission EventBridge needs, violating least privilege.
+
+## Question 53
+
+A company uses AWS Systems Manager for routine management and patching of Amazon EC2 instances. The EC2 instances are in an IP address type target group behind an Application Load Balancer (ALB).
+
+New security protocols require the company to remove EC2 instances from service during a patch. When the company attempts to follow the security protocol during the next patch, the company receives errors during the patching window.
+
+Which combination of solutions will resolve the errors? (Choose two.)
+
+- A. Change the target type of the target group from IP address type to instance type.
+- B. Continue to use the existing Systems Manager document without changes because it is already optimized to handle instances that are in an IP address type target group behind an ALB.
+- C. Implement the AWSEC2-PatchLoadBalancerInstance Systems Manager Automation document to manage the patching process.
+- D. Use Systems Manager Maintenance Windows to automatically remove the instances from service to patch the instances.
+- E. Configure Systems Manager State Manager to remove the instances from service and manage the patching schedule. Use ALB health checks to re-route traffic.
+
+**Architecture Diagram:**
+
+```
+ +----------------------+     +------------------------+     +----------------------+
+ | Systems Manager      | --> | AWSEC2-Patch          | --> | ALB target group     |
+ | Maintenance Window   |     | LoadBalancerInstance   |     | (deregister / patch / |
+ | (scheduled trigger)  |     | Automation document    |     |  re-register instance)|
+ +----------------------+     +------------------------+     +----------------------+
+```
+
+**Correct Answer: C, D**
+
+**Explanation:** The AWSEC2-PatchLoadBalancerInstance Automation document (C) is the purpose-built Systems Manager runbook that determines the load balancer/target group an instance belongs to, verifies its health, deregisters it, waits out connection draining, patches it via AWS-RunPatchBaseline, and re-registers it — replacing whatever generic patching document was producing errors when it tried to remove instances from an ALB-attached target group. Systems Manager Maintenance Windows (D) is the mechanism for scheduling that remove-from-service patching workflow to run automatically across the fleet during a defined maintenance period, which is what the new security protocol requires operationally.
+
+- A. Wrong — The errors are caused by using the wrong patching document/workflow, not by the target group's type; changing the target type from IP address to instance type is an unnecessary and disruptive change to the load balancer configuration when the real fix is switching to the correct Automation document.
+- B. Wrong — Continuing with the existing, unmodified Systems Manager document is exactly what is producing the errors during the patching window, so making no change cannot resolve them.
+- E. Wrong — State Manager is designed for continuously enforcing a consistent configuration state on instances over time, not for orchestrating a scheduled deregister-patch-re-register workflow against an ALB target group.
+
+## Question 54
+
+A company has implemented a self-managed DNS solution on three Amazon EC2 instances behind a Network Load Balancer (NLB) in the us-west-2 Region. Most of the company's users are located in the United States and Europe. The company wants to improve the performance and availability of the solution. The company launches and configures three EC2 instances in the eu-west-1 Region and adds the EC2 instances as targets for a new NLB.
+
+Which solution can the company use to route traffic to all the EC2 instances?
+
+- A. Create an Amazon Route 53 geolocation routing policy to route requests to one of the two NLBs. Create an Amazon CloudFront distribution. Use the Route 53 record as the distribution's origin.
+- B. Create a standard accelerator in AWS Global Accelerator. Create endpoint groups in us-west-2 and eu-west-1. Add the two NLBs as endpoints for the endpoint groups.
+- C. Attach Elastic IP addresses to the six EC2 instances. Create an Amazon Route 53 geolocation routing policy to route requests to one of the six EC2 instances. Create an Amazon CloudFront distribution. Use the Route 53 record as the distribution's origin.
+- D. Replace the two NLBs with two Application Load Balancers (ALBs). Create an Amazon Route 53 latency routing policy to route requests to one of the two ALBs. Create an Amazon CloudFront distribution. Use the Route 53 record as the distribution's origin.
+
+**Architecture Diagram:**
+
+```
+ +----------+     +--------------------------+     +----------------------+
+ | Users in | --> | AWS Global Accelerator   | --> | Endpoint group:       |
+ | US/Europe|     | (standard accelerator,   |     | us-west-2 -> NLB      |
+ +----------+     |  static anycast IPs,     |     +----------------------+
+                   |  health-based routing)   |     +----------------------+
+                   +--------------------------+ --> | eu-west-1 -> NLB     |
+                                                     +----------------------+
+```
+
+**Correct Answer: B**
+
+**Explanation:** AWS Global Accelerator is purpose-built to front self-managed, non-HTTP(S) services like a DNS solution (which uses TCP/UDP port 53, not HTTP), providing static anycast IP addresses and routing each user to the nearest healthy Regional endpoint. Configuring a standard accelerator with endpoint groups in us-west-2 and eu-west-1, each pointing at that Region's NLB, lets Global Accelerator route users in the US and Europe to whichever Region gives the best performance while improving availability through automatic failover between Regions.
+
+- A. Wrong — CloudFront is an HTTP(S) content delivery network and cannot front a DNS service running over TCP/UDP port 53, so this solution can't actually carry the application's traffic.
+- C. Wrong — Same fundamental problem as A (CloudFront doesn't support non-HTTP DNS traffic), and it also drops the NLBs entirely in favor of directly exposed EC2 instances via Elastic IPs, losing the load-balancing/health-check benefits already in place.
+- D. Wrong — Replacing NLBs with ALBs would break the solution, since ALBs operate at Layer 7 (HTTP/HTTPS) and cannot handle the DNS protocol's TCP/UDP traffic that the self-managed DNS service requires; CloudFront in front of it has the same non-HTTP limitation as options A and C.
+
+## Question 55
+
+A company runs a production application on a fleet of Amazon EC2 instances. The application reads the data from an Amazon SQS queue and processes the messages in parallel. The message volume is unpredictable and often has intermittent traffic. This application should continually process messages without any downtime.
+
+Which solution meets these requirements MOST cost-effectively?
+
+- A. Use Spot Instances exclusively to handle the maximum capacity required.
+- B. Use Reserved Instances exclusively to handle the maximum capacity required.
+- C. Use Reserved Instances for the baseline capacity and use Spot Instances to handle additional capacity.
+- D. Use Reserved Instances for the baseline capacity and use On-Demand Instances to handle additional capacity.
+
+**Architecture Diagram:**
+
+```
+ +------------------+     +----------------------------------------------+
+ | Amazon SQS queue | --> | Auto Scaling group                            |
+ | (unpredictable,  |     |  - Reserved Instances: steady baseline load   |
+ |  intermittent)   |     |  - Spot Instances: variable extra capacity    |
+ +------------------+     +----------------------------------------------+
+```
+
+**Correct Answer: C**
+
+**Explanation:** Reserved Instances cover the known, steady baseline workload at a discounted rate, guaranteeing continual message processing without downtime for that portion of capacity. Spot Instances then absorb the unpredictable, intermittent extra traffic at the deepest possible discount; since the fleet processes messages in parallel from a durable SQS queue, any interrupted Spot Instance simply leaves its in-flight messages to become visible again and be picked up by another instance, so occasional Spot interruptions don't cause downtime — making this the most cost-effective combination.
+
+- A. Wrong — Using Spot Instances exclusively to cover maximum capacity risks simultaneous interruptions across the whole fleet during a capacity crunch, which could stall processing entirely and risks downtime.
+- B. Wrong — Sizing Reserved Instances to the maximum capacity means paying for peak capacity around the clock even during low-traffic periods, which is far more expensive than necessary for intermittent, unpredictable load.
+- D. Wrong — On-Demand Instances cost significantly more than Spot Instances for the variable additional capacity, so this combination is valid for availability but not the most cost-effective option compared to using Spot for the elastic portion.
+
+## Question 56
+
+A company is migrating an application from on-premises servers to Amazon EC2 instances. As part of the migration design requirements, a solutions architect must implement infrastructure metric alarms. The company does not need to take action if CPU utilization increases to more than 50% for a short burst of time. However, if the CPU utilization increases to more than 50% and read IOPS on the disk are high at the same time, the company needs to act as soon as possible. The solutions architect also must reduce false alarms.
+
+What should the solutions architect do to meet these requirements?
+
+- A. Create Amazon CloudWatch composite alarms where possible.
+- B. Create Amazon CloudWatch dashboards to visualize the metrics and react to issues quickly.
+- C. Create Amazon CloudWatch Synthetics canaries to monitor the application and raise an alarm.
+- D. Create single Amazon CloudWatch metric alarms with multiple metric thresholds where possible.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     AND     +------------------------+
+ | CloudWatch alarm:      | ----------> | CloudWatch Composite   |
+ | CPUUtilization > 50%   |             | Alarm                  |
+ +------------------------+             | (triggers only when   |
+ +------------------------+     AND     |  both underlying      |
+ | CloudWatch alarm:      | ----------> |  alarms are in ALARM) |
+ | DiskReadIOPS high      |             +------------------------+
+ +------------------------+
+```
+
+**Correct Answer: A**
+
+**Explanation:** A CloudWatch composite alarm combines the alarm states of multiple existing metric alarms using AND/OR logic, so it can be configured to go into ALARM only when both the CPUUtilization alarm and the disk read IOPS alarm are simultaneously in ALARM state. This precisely matches the requirement to act only when both conditions occur together, while suppressing the standalone CPU burst that alone shouldn't trigger action — directly reducing false alarms.
+
+- B. Wrong — Dashboards only visualize metrics for humans to look at; they don't evaluate conditions or automatically raise an alarm/take action based on combined metric states.
+- C. Wrong — CloudWatch Synthetics canaries run scripted checks against application endpoints (e.g., simulating user traffic); they don't evaluate combined EC2-level metrics like CPU utilization and disk read IOPS together.
+- D. Wrong — A single CloudWatch metric alarm can only evaluate one metric at a time; it has no built-in way to combine multiple distinct metric thresholds (like CPU and disk IOPS) into a single AND condition — that capability is exactly what composite alarms add.
+
+## Question 57 (Choose two)
+
+A solutions architect must design a highly available infrastructure for a website. The website is powered by Windows web servers that run on Amazon EC2 instances. The solutions architect must implement a solution that can mitigate a large-scale DDoS attack that originates from thousands of IP addresses. Downtime is not acceptable for the website.
+
+Which actions should the solutions architect take to protect the website from such an attack? (Choose two.)
+
+- A. Use AWS Shield Advanced to stop the DDoS attack.
+- B. Configure Amazon GuardDuty to automatically block the attackers.
+- C. Configure the website to use Amazon CloudFront for both static and dynamic content.
+- D. Use an AWS Lambda function to automatically add attacker IP addresses to VPC network ACLs.
+- E. Use EC2 Spot Instances in an Auto Scaling group with a target tracking scaling policy that is set to 80% CPU utilization.
+
+**Architecture Diagram:**
+
+```
+ +----------+     +------------------------+     +------------------------+     +------------------+
+ | Attackers| --> | Amazon CloudFront      | --> | AWS Shield Advanced    | --> | EC2 web servers |
+ | (1000s of|     | (absorbs/distributes   |     | (detects & mitigates   |     | (Windows,        |
+ |  IPs)     |     |  traffic at edge)     |     |  large-scale DDoS)     |     |  no downtime)    |
+ +----------+     +------------------------+     +------------------------+     +------------------+
+```
+
+**Correct Answers: A, C**
+
+**Explanation:** AWS Shield Advanced provides enhanced, automated DDoS detection and mitigation for large-scale attacks, including Layer 7 protections and integration with AWS WAF, directly addressing the "large-scale DDoS attack from thousands of IP addresses" scenario. Fronting the website with Amazon CloudFront (for both static and dynamic content) absorbs and disperses attack traffic across CloudFront's globally distributed edge network before it ever reaches the origin EC2 instances, and Shield Advanced integrates natively with CloudFront — together keeping the website available with no downtime.
+
+- B. Wrong — Amazon GuardDuty is a detective threat-monitoring service that generates findings and alerts; it does not automatically block traffic or mitigate a DDoS attack on its own.
+- D. Wrong — Manually updating VPC network ACLs via a custom Lambda function cannot realistically keep up with an attack originating from thousands of constantly-changing IP addresses, and NACL rule evaluation/management at that scale is slow, error-prone, and not a real-time mitigation mechanism.
+- E. Wrong — Scaling EC2 Spot Instances based on CPU utilization does nothing to stop or absorb a DDoS attack; it only reactively adds compute capacity (which Spot Instances can't even guarantee, since they can be interrupted), risking downtime rather than preventing it.
+
+## Question 58
+
+A media company is evaluating the possibility of moving its systems to the AWS Cloud. The company needs at least 10 TB of storage with the maximum possible I/O performance for video processing, 300 TB of very durable storage for storing media content, and 900 TB of storage to meet requirements for archival media that is not in use anymore.
+
+Which set of services should a solutions architect recommend to meet these requirements?
+
+- A. Amazon EBS for maximum performance, Amazon S3 for durable data storage, and Amazon S3 Glacier for archival storage
+- B. Amazon EBS for maximum performance, Amazon EFS for durable data storage, and Amazon S3 Glacier for archival storage
+- C. Amazon EC2 instance store for maximum performance, Amazon EFS for durable data storage, and Amazon S3 for archival storage
+- D. Amazon EC2 instance store for maximum performance, Amazon S3 for durable data storage, and Amazon S3 Glacier for archival storage
+
+**Architecture Diagram:**
+
+```
+ +------------------------+   10 TB, max IOPS    +------------------------+
+ | Video processing       | -------------------> | Amazon EBS (io2/       |
+ | workload                |                       |  Provisioned IOPS)     |
+ +------------------------+                       +------------------------+
+
+ +------------------------+   300 TB, durable    +------------------------+
+ | Media content storage  | -------------------> | Amazon S3              |
+ +------------------------+                       +------------------------+
+
+ +------------------------+   900 TB, archival   +------------------------+
+ | Unused archival media  | -------------------> | Amazon S3 Glacier      |
+ +------------------------+                       +------------------------+
+```
+
+**Correct Answer: A**
+
+**Explanation:** Amazon EBS (Provisioned IOPS volumes) delivers the highest, most consistent I/O performance for a demanding, latency-sensitive workload like video processing on a single instance. Amazon S3 offers extremely high (11 nines) durability at scale for the 300 TB of media content. Amazon S3 Glacier is purpose-built as the low-cost archival tier for the 900 TB of media that is no longer actively used — together this set of services matches each stated capacity and performance requirement to the right storage class.
+
+- B. Wrong — Amazon EFS is a shared, elastic file system optimized for concurrent access by many instances; it does not provide the maximum possible single-workload I/O performance that Provisioned IOPS EBS volumes deliver for video processing.
+- C. Wrong — EC2 instance store is ephemeral (data is lost when the instance stops or terminates), so it cannot be relied on for a workload's storage without risking data loss, and EFS/S3 mismatch the required durability and archival characteristics as in option B.
+- D. Wrong — EC2 instance store's ephemeral nature makes it unsuitable as the "maximum performance" storage choice when durability of the processed workload matters; a persistent, high-IOPS EBS volume is the appropriate service instead.
+
+## Question 59
+
+A company has two applications: a sender application that sends messages with payloads to be processed and a processing application intended to receive the messages with payloads. The company wants to implement an AWS service to handle messages between the two applications. The sender application can send about 1,000 messages each hour. The messages may take up to 2 days to be processed. If the messages fail to process, they must be retained so that they do not impact the processing of any remaining messages.
+
+Which solution meets these requirements and is the MOST operationally efficient?
+
+- A. Set up an Amazon EC2 instance running a Redis database. Configure both applications to use the instance. Store, process, and delete the messages, respectively.
+- B. Use an Amazon Kinesis data stream to receive the messages from the sender application. Integrate the processing application with the Kinesis Client Library (KCL).
+- C. Integrate the sender and processor applications with an Amazon Simple Queue Service (Amazon SQS) queue. Configure a dead-letter queue to collect the messages that failed to process.
+- D. Subscribe the processing application to an Amazon Simple Notification Service (Amazon SNS) topic to receive notifications to process. Integrate the sender application to write to the SNS topic.
+
+**Architecture Diagram:**
+
+```
+ +--------------------+     +------------------------+     +------------------------+
+ | Sender application | --> | Amazon SQS queue       | --> | Processing application |
+ +--------------------+     +------------------------+     +------------------------+
+                                       |
+                                       | repeated failures
+                                       v
+                            +------------------------+
+                            | Dead-letter queue       |
+                            | (retains failed         |
+                            |  messages, isolated)    |
+                            +------------------------+
+```
+
+**Correct Answer: C**
+
+**Explanation:** Amazon SQS is a fully managed queue that decouples the sender and processing applications with no infrastructure to run, and its message retention (up to 14 days) comfortably covers messages that take up to 2 days to process. Configuring a dead-letter queue automatically isolates messages that repeatedly fail processing, so they don't block or interfere with the processing of remaining messages — meeting every requirement with a native, managed feature and the least operational effort.
+
+- A. Wrong — Running Redis on a self-managed EC2 instance requires provisioning, patching, scaling, and building custom logic for storing/processing/deleting messages and handling failures, which is far more operational overhead than a managed SQS queue with a DLQ.
+- B. Wrong — Kinesis Data Streams is designed for high-throughput, ordered streaming data with consumers tracking their own position; it doesn't have a native concept of per-message failure retention like an SQS dead-letter queue, and it adds unnecessary operational complexity (shard management, KCL) for a modest 1,000-messages-per-hour workload.
+- D. Wrong — SNS is a push-based pub/sub notification service without built-in message retention/redelivery for slow (up to 2-day) processing or a dead-letter mechanism for isolating failed messages; it isn't designed for durable, queued point-to-point message processing.
+
+## Question 60
+
+A company runs an environment where data is stored in an Amazon S3 bucket. The objects are accessed frequently throughout the day. The company has strict data encryption requirements for data that is stored in the S3 bucket. The company currently uses AWS Key Management Service (AWS KMS) for encryption.
+
+The company wants to optimize costs associated with encrypting S3 objects without making additional calls to AWS KMS.
+
+Which solution will meet these requirements?
+
+- A. Use server-side encryption with Amazon S3 managed keys (SSE-S3).
+- B. Use an S3 Bucket Key for server-side encryption with AWS KMS keys (SSE-KMS) on the new objects.
+- C. Use client-side encryption with AWS KMS customer managed keys.
+- D. Use server-side encryption with customer-provided keys (SSE-C) stored in AWS KMS.
+
+**Architecture Diagram:**
+
+```
+ +------------------+     +------------------------+     +------------------------+
+ | S3 requests      | --> | S3 Bucket Key           | --> | AWS KMS               |
+ | (frequent access)|     | (cached data key,       |     | (called only to       |
+ |                   |     |  reused for many        |     |  refresh the bucket   |
+ |                   |     |  object operations)     |     |  key periodically)    |
+ +------------------+     +------------------------+     +------------------------+
+```
+
+**Correct Answer: B**
+
+**Explanation:** An S3 Bucket Key generates a short-lived bucket-level key from the KMS key and caches it inside S3, so most subsequent SSE-KMS encrypt/decrypt operations are handled using that cached key instead of making a fresh call to AWS KMS for every object request. This dramatically reduces KMS API call volume (and the associated per-request cost) for frequently accessed objects while still meeting the strict encryption requirement, since the underlying encryption still relies on AWS KMS.
+
+- A. Wrong — SSE-S3 uses Amazon-managed keys instead of AWS KMS entirely, so while it avoids KMS calls, it drops the company's existing KMS-based key management and doesn't meet the requirement to keep using AWS KMS for encryption.
+- C. Wrong — Client-side encryption with KMS customer managed keys still requires a KMS API call (GenerateDataKey) for every object encrypted or decrypted on the client, so it doesn't reduce KMS calls or cost — if anything it adds application complexity.
+- D. Wrong — SSE-C uses keys that the customer supplies with each request and that AWS does not store or manage at all; AWS KMS cannot store SSE-C keys, so this option describes a combination that isn't how SSE-C or KMS actually work.
+
+## Question 61
+
+A company's web application is running on Amazon EC2 instances behind an Application Load Balancer. The company recently changed its policy, which now requires the application to be accessed from one specific country only.
+
+Which configuration will meet this requirement?
+
+- A. Configure the security group for the EC2 instances.
+- B. Configure the security group on the Application Load Balancer.
+- C. Configure AWS WAF on the Application Load Balancer in a VPC.
+- D. Configure the network ACL for the subnet that contains the EC2 instances.
+
+**Architecture Diagram:**
+
+```
+ +----------+     +------------------------+     +------------------------+
+ | Requests | --> | AWS WAF (geo-match     | --> | Application Load       |
+ | (global) |     |  rule: allow only one  |     | Balancer               |
+ +----------+     |  specific country)     |     +------------------------+
+                   +------------------------+
+```
+
+**Correct Answer: C**
+
+**Explanation:** AWS WAF supports geographic match (geo-match) conditions that inspect the source country of each request and allow or block traffic based on it. Attaching a WAF web ACL with a geo-match rule to the Application Load Balancer restricts application access to only the one approved country, which is exactly the kind of Layer 7, country-based filtering that security groups and network ACLs cannot perform.
+
+- A. Wrong — Security groups filter traffic only by IP address/CIDR range and port; they have no concept of geographic/country-based origin, so they can't enforce a single-country restriction.
+- B. Wrong — Same limitation as option A: security groups (even on the ALB) can only match IP ranges and ports, not the request's country of origin.
+- D. Wrong — Network ACLs also filter based on IP address ranges and ports at the subnet level; they have no built-in geographic awareness and can't reliably restrict access to a single country.
+
+## Question 62
+
+A company needs to store data in Amazon S3 and must prevent the data from being changed. The company wants new objects that are uploaded to Amazon S3 to remain unchangeable for a nonspecific amount of time until the company decides to modify the objects. Only specific users in the company's AWS account can have the ability to delete the objects.
+
+What should a solutions architect do to meet these requirements?
+
+- A. Create an S3 Glacier vault. Apply a write-once, read-many (WORM) vault lock policy to the objects.
+- B. Create an S3 bucket with S3 Object Lock enabled. Enable versioning. Set a retention period of 100 years. Use governance mode as the S3 bucket's default retention mode for new objects.
+- C. Create an S3 bucket. Use AWS CloudTrail to track any S3 API events that modify the objects. Upon notification, restore the modified objects from any backup versions that the company has.
+- D. Create an S3 bucket with S3 Object Lock enabled. Enable versioning. Add a legal hold to the objects. Add the s3:PutObjectLegalHold permission to the IAM policies of users who need to delete the objects.
+
+**Architecture Diagram:**
+
+```
+ +------------------+     +------------------------+     +------------------------+
+ | New object       | --> | S3 bucket              | --> | S3 Object Lock:        |
+ | upload            |     | (versioning enabled)   |     | Legal Hold (ON)        |
+ +------------------+     +------------------------+     | - blocks all changes/  |
+                                                            |   deletes indefinitely|
+                                                            | - only users with     |
+                                                            |   s3:PutObjectLegalHold|
+                                                            |   can remove the hold |
+                                                            +------------------------+
+```
+
+**Correct Answer: D**
+
+**Explanation:** An S3 Object Lock legal hold protects an object for an indefinite, nonspecific duration — it has no expiration date and stays in place until someone with permission explicitly removes it, unlike a fixed retention period. Granting the s3:PutObjectLegalHold permission only to specific IAM users lets exclusively those users remove the legal hold (and thus subsequently delete the object), while everyone else is blocked from changing or deleting it, matching both requirements exactly.
+
+- A. Wrong — S3 Glacier vault lock with a WORM policy applies to a Glacier vault, not standard S3 objects, and is intended for fixed compliance archiving, not general S3 storage with the flexibility to later allow specific users to delete objects.
+- B. Wrong — A 100-year retention period is a specific, fixed duration, not the "nonspecific amount of time" the company wants, and governance mode still allows users with special permissions to bypass or shorten the retention entirely — it doesn't tie deletion ability to specific users as precisely as a legal hold combined with scoped IAM permissions.
+- C. Wrong — This is a reactive, detect-and-restore approach that doesn't actually prevent objects from being changed in the first place; it only notices changes after they've already happened and relies on backups existing, which doesn't meet the "remain unchangeable" requirement.
+
+## Question 63 (Choose two)
+
+A company is running a publicly accessible serverless application that uses Amazon API Gateway and AWS Lambda. The application's traffic recently spiked due to fraudulent requests from botnets.
+
+Which steps should a solutions architect take to block requests from unauthorized users? (Choose two.)
+
+- A. Create a usage plan with an API key that is shared with genuine users only.
+- B. Integrate logic within the Lambda function to ignore the requests from fraudulent IP addresses.
+- C. Implement an AWS WAF rule to target malicious requests and trigger actions to filter them out.
+- D. Convert the existing public API to a private API. Update the DNS records to redirect users to the new API endpoint.
+- E. Create an IAM role for each user attempting to access the API. A user will assume the role when making the API call.
+
+**Architecture Diagram:**
+
+```
+ +----------+     +------------------------+     +------------------------+     +------------------+
+ | Botnets  | -x  | AWS WAF                | --> | API Gateway            | --> | AWS Lambda       |
+ | Genuine  | --> | (blocks malicious      |     | (usage plan + API key  |     +------------------+
+ | users    |     |  request patterns)     |     |  restricts to genuine  |
+ +----------+     +------------------------+     |  users only)           |
+                                                    +------------------------+
+```
+
+**Correct Answers: A, C**
+
+**Explanation:** A usage plan with an API key (A) requires every request to present a valid key, so only genuine users who were issued a key can call the API, immediately blocking anonymous botnet traffic. AWS WAF (C), attached to API Gateway, can inspect incoming requests and apply rules (rate-based rules, IP reputation lists, bot control) to detect and filter out malicious traffic patterns before it reaches the API. Together these block unauthorized/fraudulent requests at the edge with native, managed features.
+
+- B. Wrong — Hardcoding fraudulent IP-blocking logic inside the Lambda function still invokes Lambda for every fraudulent request (incurring cost and load) and is a fragile, manually maintained blocklist compared to AWS WAF's purpose-built filtering.
+- D. Wrong — Converting to a private API removes public accessibility entirely, which conflicts with the requirement that the application remains a "publicly accessible" application; it doesn't selectively block only unauthorized users.
+- E. Wrong — Requiring an IAM role per user is impractical for a publicly accessible application with external/anonymous users and isn't how public-facing API authorization is typically implemented; it doesn't address filtering out botnet traffic.
+
+## Question 64
+
+A company uses a three-tier web application to provide training to new employees. The application is accessed for only 12 hours every day. The company is using an Amazon RDS for MySQL DB instance to store information and wants to minimize costs.
+
+What should a solutions architect do to meet these requirements?
+
+- A. Configure an IAM policy for AWS Systems Manager Session Manager. Create an IAM role for the policy. Update the trust relationship of the role. Set up automatic start and stop for the DB instance.
+- B. Create an Amazon ElastiCache for Redis cache cluster that gives users the ability to access the data from the cache when the DB instance is stopped. Invalidate the cache after the DB instance is started.
+- C. Launch an Amazon EC2 instance. Create an IAM role that grants access to Amazon RDS. Attach the role to the EC2 instance. Configure a cron job to start and stop the EC2 instance on the desired schedule.
+- D. Create AWS Lambda functions to start and stop the DB instance. Create Amazon EventBridge (Amazon CloudWatch Events) scheduled rules to invoke the Lambda functions. Configure the Lambda functions as event targets for the rules.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     invoke     +------------------------+     start/stop     +------------------+
+ | Amazon EventBridge     | -------------> | AWS Lambda functions   | -----------------> | Amazon RDS       |
+ | scheduled rules         |                | (start DB, stop DB)    |                     | for MySQL        |
+ | (e.g. 12h on/12h off)  |                +------------------------+                     +------------------+
+ +------------------------+
+```
+
+**Correct Answer: D**
+
+**Explanation:** Scheduling AWS Lambda functions via Amazon EventBridge rules to start the DB instance at the beginning of the 12-hour usage window and stop it at the end directly stops the company from paying for RDS compute while the application is idle, using only fully managed, serverless components with no infrastructure to run — the lowest-cost, lowest-effort way to meet the requirement.
+
+- A. Wrong — AWS Systems Manager Session Manager provides secure shell/console access to managed instances; it has no feature for scheduling automatic start/stop of an RDS DB instance, so this option doesn't actually implement the required behavior.
+- B. Wrong — Adding an ElastiCache cluster increases cost rather than reducing it, and it doesn't stop the RDS instance from running (or being billed) during idle hours — it addresses a different problem (read performance) entirely.
+- C. Wrong — This starts and stops an EC2 instance, not the RDS DB instance itself, so the RDS instance would keep running (and incurring cost) around the clock regardless of the EC2 schedule.
+
+## Question 65
+
+A company runs an application in a private subnet behind an Application Load Balancer (ALB) in a VPC. The VPC has a NAT gateway and an internet gateway. The application calls the Amazon S3 API to store objects.
+
+According to the company's security policy, traffic from the application must not travel across the internet.
+
+Which solution will meet these requirements MOST cost-effectively?
+
+- A. Configure an S3 interface endpoint. Create a security group that allows outbound traffic to Amazon S3.
+- B. Configure an S3 gateway endpoint. Update the VPC route table to use the endpoint.
+- C. Configure an S3 bucket policy to allow traffic from the Elastic IP address that is assigned to the NAT gateway.
+- D. Create a second NAT gateway in the same subnet where the legacy application is deployed. Update the VPC route table to use the second NAT gateway.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +--------------------------+     +------------------+
+ | Application            | --> | S3 Gateway Endpoint      | --> | Amazon S3        |
+ | (private subnet)       |     | (VPC route table entry,  |     | (private route,  |
+ +------------------------+     |  no hourly/data charge)  |     |  no internet)    |
+                                +--------------------------+     +------------------+
+```
+
+**Correct Answer: B**
+
+**Explanation:** An S3 gateway endpoint routes traffic to Amazon S3 entirely over AWS's private network by adding a route table entry, keeping traffic off the internet, and unlike an interface endpoint it has no hourly or per-GB processing charge — making it both compliant with the no-internet policy and the most cost-effective of the private-connectivity options.
+
+- A. Wrong — An S3 interface endpoint (a PrivateLink ENI) also keeps traffic private, but it incurs hourly and data processing charges, making it more expensive than a gateway endpoint for the same requirement.
+- C. Wrong — Restricting the S3 bucket policy to the NAT gateway's Elastic IP still routes traffic out through the NAT gateway and internet gateway to reach S3's public endpoint, meaning the traffic still traverses the internet path, violating the policy.
+- D. Wrong — Adding a second NAT gateway still sends S3 traffic out through a NAT/internet gateway to the public S3 endpoint, which doesn't satisfy the "must not travel across the internet" requirement, and it adds unnecessary extra cost.
+
+## Question 66 (Choose two)
+
+A company uses a popular content management system (CMS) for its corporate website. However, the required patching and maintenance are burdensome. The company is redesigning its website and wants a new solution. The website will be updated four times a year and does not need to have any dynamic content available. The solution must provide high scalability and enhanced security.
+
+Which combination of changes will meet these requirements with the LEAST operational overhead? (Choose two.)
+
+- A. Configure Amazon CloudFront in front of the website to use HTTPS functionality.
+- B. Deploy an AWS WAF web ACL in front of the website to provide HTTPS functionality.
+- C. Create and deploy an AWS Lambda function to manage and serve the website content.
+- D. Create the new website and an Amazon S3 bucket. Deploy the website on the S3 bucket with static website hosting enabled.
+- E. Create the new website. Deploy the website by using an Auto Scaling group of Amazon EC2 instances behind an Application Load Balancer.
+
+**Architecture Diagram:**
+
+```
+ +----------+     +------------------------+     +------------------------+
+ | Visitors | --> | Amazon CloudFront      | --> | Amazon S3 bucket       |
+ |          |     | (HTTPS, edge caching,  |     | (static website        |
+ |          |     |  scalability, security)|     |  hosting, no servers)  |
+ +----------+     +------------------------+     +------------------------+
+```
+
+**Correct Answers: A, D**
+
+**Explanation:** Since the website has no dynamic content and updates only four times a year, hosting it as a static website on Amazon S3 (D) eliminates all server patching/maintenance — S3 durably serves the HTML/CSS/JS files directly with virtually unlimited scalability and no infrastructure to manage. Placing Amazon CloudFront in front of it (A) adds HTTPS termination, edge caching for further scalability/performance, and an additional security layer (e.g., restricting direct S3 access via OAI) — together fully satisfying scalability, security, and minimal operational overhead.
+
+- B. Wrong — AWS WAF filters malicious request patterns (SQLi, XSS, rate limiting); it is not a mechanism for providing HTTPS/TLS termination, so it cannot fulfill the HTTPS functionality on its own.
+- C. Wrong — Using Lambda to manage and serve static website content adds unnecessary custom code and operational complexity compared to simply hosting static files on S3, which requires no code at all for this use case.
+- E. Wrong — An Auto Scaling group of EC2 instances behind an ALB still requires patching the underlying OS/CMS software and managing server infrastructure, which is exactly the operational burden the company is trying to eliminate.
+
+## Question 67
+
+A company wants to run applications in containers in the AWS Cloud. These applications are stateless and can tolerate disruptions within the underlying infrastructure. The company needs a solution that minimizes cost and operational overhead.
+
+What should a solutions architect do to meet these requirements?
+
+- A. Use Spot Instances in an Amazon EC2 Auto Scaling group to run the application containers.
+- B. Use Spot Instances in an Amazon Elastic Kubernetes Service (Amazon EKS) managed node group.
+- C. Use On-Demand Instances in an Amazon EC2 Auto Scaling group to run the application containers.
+- D. Use On-Demand Instances in an Amazon Elastic Kubernetes Service (Amazon EKS) managed node group.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +------------------------+
+ | Amazon EC2 Auto        | --> | Spot Instances          |
+ | Scaling group           |     | (stateless containers, |
+ | (runs containers)       |     |  tolerate disruption,  |
+ +------------------------+     |  lowest cost)           |
+                                  +------------------------+
+```
+
+**Correct Answer: A**
+
+**Explanation:** Since the applications are stateless and can tolerate infrastructure disruptions, Spot Instances are the cheapest compute option and fit this workload well without risking availability problems. Running containers directly in an EC2 Auto Scaling group avoids the extra control-plane cost and operational complexity of managing a Kubernetes cluster, so this combination minimizes both cost and operational overhead compared to the EKS-based options.
+
+- B. Wrong — Amazon EKS adds a per-cluster control plane cost and the operational overhead of managing Kubernetes (upgrades, add-ons, cluster configuration), which is more than needed when a simpler EC2 Auto Scaling group can run the same containers just as effectively.
+- C. Wrong — On-Demand Instances cost more than Spot Instances; since the workload is stateless and disruption-tolerant, there's no need to pay the On-Demand premium.
+- D. Wrong — This combines the higher cost of On-Demand Instances with the added operational overhead of managing an EKS cluster, making it the least cost- and overhead-optimized of the four options.
+
+## Question 68
+
+A company is implementing a new business application. The application runs on two Amazon EC2 instances and uses an Amazon S3 bucket for document storage. A solutions architect needs to ensure that the EC2 instances can access the S3 bucket.
+
+What should the solutions architect do to meet this requirement?
+
+- A. Create an IAM role that grants access to the S3 bucket. Attach the role to the EC2 instances.
+- B. Create an IAM policy that grants access to the S3 bucket. Attach the policy to the EC2 instances.
+- C. Create an IAM group that grants access to the S3 bucket. Attach the group to the EC2 instances.
+- D. Create an IAM user that grants access to the S3 bucket. Attach the user account to the EC2 instances.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +------------------------+     +------------------+
+ | EC2 instances          | --> | IAM role (instance     | --> | Amazon S3        |
+ | (instance profile)     |     |  profile, S3 access    |     | bucket           |
+ +------------------------+     |  policy attached)       |     +------------------+
+                                +------------------------+
+```
+
+**Correct Answer: A**
+
+**Explanation:** An IAM role is the only one of these IAM constructs that can be attached directly to an EC2 instance (via an instance profile), automatically supplying temporary credentials to the instance so it can access the S3 bucket without any hardcoded long-term credentials.
+
+- B. Wrong — An IAM policy defines permissions but cannot be attached directly to an EC2 instance by itself; it must be attached to an identity such as a role, user, or group.
+- C. Wrong — IAM groups can only contain IAM users, not EC2 instances, so a group cannot be attached to an instance to grant it access.
+- D. Wrong — IAM users represent people or applications with long-term credentials and cannot be "attached" to an EC2 instance; embedding user credentials on an instance is also an insecure practice compared to using a role.
+
+## Question 69
+
+A company's production environment consists of Amazon EC2 On-Demand Instances that run constantly between Monday and Saturday. The instances must run for only 12 hours on Sunday and cannot tolerate interruptions. The company wants to cost-optimize the production environment.
+
+Which solution will meet these requirements MOST cost-effectively?
+
+- A. Purchase Scheduled Reserved Instances for the EC2 instances that run for only 12 hours on Sunday. Purchase Standard Reserved Instances for the EC2 instances that run constantly between Monday and Saturday.
+- B. Purchase Convertible Reserved Instances for the EC2 instances that run for only 12 hours on Sunday. Purchase Standard Reserved Instances for the EC2 instances that run constantly between Monday and Saturday.
+- C. Use Spot Instances for the EC2 instances that run for only 12 hours on Sunday. Purchase Standard Reserved Instances for the EC2 instances that run constantly between Monday and Saturday.
+- D. Use Spot Instances for the EC2 instances that run for only 12 hours on Sunday. Purchase Convertible Reserved Instances for the EC2 instances that run constantly between Monday and Saturday.
+
+**Architecture Diagram:**
+
+```
+ +------------------------------+     +------------------------------+
+ | Mon-Sat: constant workload   | --> | Standard Reserved Instances  |
+ | (steady, predictable)        |     | (deepest discount, full-time)|
+ +------------------------------+     +------------------------------+
+
+ +------------------------------+     +------------------------------+
+ | Sunday: 12-hour recurring    | --> | Scheduled Reserved Instances |
+ | workload (fixed schedule,    |     | (matches recurring schedule, |
+ |  no interruptions allowed)   |     |  guaranteed capacity)        |
+ +------------------------------+     +------------------------------+
+```
+
+**Correct Answer: A**
+
+**Explanation:** The Monday-through-Saturday workload runs constantly and predictably, so Standard Reserved Instances give the deepest discount for that always-on capacity. The Sunday workload has a fixed, recurring 12-hour schedule and cannot tolerate interruptions, which is exactly the use case Scheduled Reserved Instances are designed for — they reserve capacity for a specific recurring time window at a discount versus On-Demand, while still guaranteeing the instance is available and uninterrupted during that window.
+
+- B. Wrong — Convertible Reserved Instances allow changing instance attributes over the term but, like Standard RIs, are billed for a full-time commitment; they aren't priced or structured around a recurring partial-day schedule the way Scheduled Reserved Instances are, making them less cost-effective for the 12-hour Sunday workload.
+- C. Wrong — Spot Instances can be interrupted by AWS at any time, which directly violates the requirement that the Sunday workload "cannot tolerate interruptions."
+- D. Wrong — Same Spot interruption problem as option C for the Sunday workload, and Convertible Reserved Instances are unnecessary (and typically no cheaper than Standard RIs) for the constant, unchanging Monday-Saturday workload described.
+
+## Question 70
+
+A company needs to save the results from a medical trial to an Amazon S3 repository. The repository must allow a few scientists to add new files and must restrict all other users to read-only access. No users can have the ability to modify or delete any files in the repository. The company must keep every file in the repository for a minimum of 1 year after its creation date.
+
+Which solution will meet these requirements?
+
+- A. Use S3 Object Lock in governance mode with a legal hold of 1 year.
+- B. Use S3 Object Lock in compliance mode with a retention period of 365 days.
+- C. Use an IAM role to restrict all users from deleting or changing objects in the S3 bucket. Use an S3 bucket policy to only allow the IAM role.
+- D. Configure the S3 bucket to invoke an AWS Lambda function every time an object is added. Configure the function to track the hash of the saved object so that modified objects can be marked accordingly.
+
+**Architecture Diagram:**
+
+```
+ +------------------+     +------------------------+     +------------------------+
+ | Scientists       | --> | Amazon S3 bucket        | --> | S3 Object Lock          |
+ | (add new files)  |     | (versioning enabled)    |     | Compliance mode          |
+ +------------------+     +------------------------+     | retention: 365 days     |
+                                                            | (no user, incl. root,   |
+                                                            |  can delete/modify)     |
+                                                            +------------------------+
+```
+
+**Correct Answer: B**
+
+**Explanation:** S3 Object Lock in compliance mode enforces a fixed retention period (set here to 365 days, satisfying the 1-year minimum) during which absolutely no user — including the AWS account root user — can delete or overwrite an object, guaranteeing the "no users can modify or delete" requirement in a way that is enforced by S3 itself rather than by IAM permissions that could be changed.
+
+- A. Wrong — Governance mode allows users with special permissions (s3:BypassGovernanceRetention) to override the lock and delete or modify objects, so it does not guarantee that "no users" can modify or delete files; a legal hold also has no fixed duration, so it doesn't cleanly express a "minimum of 1 year" retention.
+- C. Wrong — Restricting deletion/modification purely through IAM roles and bucket policies is a permissions-based control that a sufficiently privileged administrator (e.g., someone who can edit IAM policies) could change or remove, unlike Object Lock's compliance-mode guarantee that even the root user cannot bypass.
+- D. Wrong — Tracking object hashes via Lambda only detects that a modification happened after the fact; it doesn't prevent modification or deletion at all, so it fails the "no users can modify or delete" requirement entirely.
+
+## Question 71
+
+A company hosts a website analytics application on a single Amazon EC2 On-Demand Instance. The analytics application is highly resilient and is designed to run in stateless mode.
+
+The company notices that the application is showing signs of performance degradation during busy times and is presenting 5xx errors. The company needs to make the application scale seamlessly.
+
+Which solution will meet these requirements MOST cost-effectively?
+
+- A. Create an Amazon Machine Image (AMI) of the web application. Use the AMI to launch a second EC2 On-Demand Instance. Use an Application Load Balancer to distribute the load across the two EC2 instances.
+- B. Create an Amazon Machine Image (AMI) of the web application. Use the AMI to launch a second EC2 On-Demand Instance. Use Amazon Route 53 weighted routing to distribute the load across the two EC2 instances.
+- C. Create an AWS Lambda function to stop the EC2 instance and change the instance type. Create an Amazon CloudWatch alarm to invoke the Lambda function when CPU utilization is more than 75%.
+- D. Create an Amazon Machine Image (AMI) of the web application. Apply the AMI to a launch template. Create an Auto Scaling group that includes the launch template. Configure the launch template to use a Spot Fleet. Attach an Application Load Balancer to the Auto Scaling group.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +----------------------------+     +------------------+
+ | Application Load       | --> | Auto Scaling group        | --> | Spot Fleet       |
+ | Balancer                |     | (launch template + AMI,   |     | instances        |
+ +------------------------+     |  scales seamlessly with    |     | (stateless,      |
+                                 |  demand)                    |     |  resilient app)  |
+                                 +----------------------------+     +------------------+
+```
+
+**Correct Answer: D**
+
+**Explanation:** An Auto Scaling group built from a launch template (based on the AMI) scales the number of instances automatically and seamlessly in response to demand, directly fixing the performance degradation seen during busy times — unlike a fixed two-instance setup. Since the application is stateless and highly resilient, it can safely run on a Spot Fleet, taking advantage of Spot's steep discount versus On-Demand pricing for the most cost-effective solution, with the Application Load Balancer distributing traffic across however many instances are currently running.
+
+- A. Wrong — Manually launching a fixed second On-Demand instance behind an ALB caps capacity at two instances and requires manual intervention to scale further; it doesn't scale "seamlessly" with fluctuating demand the way an Auto Scaling group does.
+- B. Wrong — Same fixed-capacity problem as option A, and Route 53 weighted routing only splits traffic by DNS-level weighting between two static endpoints — it has no awareness of load or health-based scaling like an ALB with Auto Scaling does.
+- C. Wrong — Stopping the instance and changing its instance type causes downtime during the resize and still only ever runs a single instance, which doesn't provide seamless scaling or resilience against a single instance's capacity limits.
+
+## Question 72
+
+A company is developing a file-sharing application that will use an Amazon S3 bucket for storage. The company wants to serve all the files through an Amazon CloudFront distribution. The company does not want the files to be accessible through direct navigation to the S3 URL.
+
+What should a solutions architect do to meet these requirements?
+
+- A. Write individual policies for each S3 bucket to grant read permission for only CloudFront access.
+- B. Create an IAM user. Grant the user read permission to objects in the S3 bucket. Assign the user to CloudFront.
+- C. Write an S3 bucket policy that assigns the CloudFront distribution ID as the Principal and assigns the target S3 bucket as the Amazon Resource Name (ARN).
+- D. Create an origin access identity (OAI). Assign the OAI to the CloudFront distribution. Configure the S3 bucket permissions so that only the OAI has read permission.
+
+**Architecture Diagram:**
+
+```
+ +----------+     +------------------------+     +------------------------+
+ | Users    | --> | Amazon CloudFront      | --> | Amazon S3 bucket       |
+ |          |     | Distribution (OAI       |     | (bucket policy allows |
+ |          |     |  attached)              |     |  read only for OAI)   |
+ +----------+     +------------------------+     +------------------------+
+        (direct S3 URL access -> denied, no permission)
+```
+
+**Correct Answer: D**
+
+**Explanation:** An origin access identity is a special CloudFront user identity that can be assigned to a distribution and then granted read permission on the S3 bucket via the bucket policy. Once the bucket policy grants access only to the OAI, requests made directly to the S3 URL are denied, and only requests routed through the CloudFront distribution (which authenticates as the OAI) can retrieve objects — exactly matching the requirement.
+
+- A. Wrong — There's no native S3 bucket policy construct that grants access "to CloudFront" in general; access must be scoped to a specific principal such as an OAI (or OAC), which this option doesn't describe.
+- B. Wrong — CloudFront cannot be "assigned" an IAM user, and IAM users are meant for people/applications with long-term credentials, not for authenticating a CDN distribution to an S3 origin.
+- C. Wrong — A CloudFront distribution ID is not a valid IAM principal that can be referenced directly in an S3 bucket policy's Principal element; the correct mechanism is to reference the origin access identity (or origin access control), not the distribution ID itself.
+
+## Question 73
+
+Organizers for a global event want to put daily reports online as static HTML pages. The pages are expected to generate millions of views from users around the world. The files are stored in an Amazon S3 bucket. A solutions architect has been asked to design an efficient and effective solution.
+
+Which action should the solutions architect take to accomplish this?
+
+- A. Generate presigned URLs for the files.
+- B. Use cross-Region replication to all Regions.
+- C. Use the geoproximity feature of Amazon Route 53.
+- D. Use Amazon CloudFront with the S3 bucket as its origin.
+
+**Architecture Diagram:**
+
+```
+ +----------+     +------------------------+     +------------------------+
+ | Users    | --> | Amazon CloudFront      | --> | Amazon S3 bucket       |
+ | (global, |     | (edge caching, serves  |     | (origin, static HTML  |
+ |  millions|     |  millions of views      |     |  reports)             |
+ |  of views)|     |  efficiently)           |     +------------------------+
+ +----------+     +------------------------+
+```
+
+**Correct Answer: D**
+
+**Explanation:** Amazon CloudFront caches the static HTML reports at edge locations around the world, so the millions of expected views are served from the nearest edge cache instead of hitting the S3 origin directly for every request — this is the standard, efficient, and cost-effective way to serve high-volume static content globally.
+
+- A. Wrong — Presigned URLs are for granting temporary, restricted access to private objects; they don't provide caching or performance benefits for high-volume public content, and add unnecessary complexity for files meant to be broadly viewed.
+- B. Wrong — Cross-Region replication duplicates objects into buckets in other Regions but doesn't itself route users to the nearest copy or cache content at the edge; it also multiplies storage cost and requires additional routing logic to be useful.
+- C. Wrong — Route 53 geoproximity routing directs DNS queries to different endpoints based on location, but without a CDN in front of the origin(s), it doesn't provide edge caching, and would require the replication/multi-endpoint setup that CloudFront handles natively and more simply.
+
+## Question 74 (Choose two)
+
+A company wants to migrate an on-premises data center to AWS. The data center hosts an SFTP server that stores its data on an NFS-based file system. The server holds 200 GB of data that needs to be transferred. The server must be hosted on an Amazon EC2 instance that uses an Amazon Elastic File System (Amazon EFS) file system.
+
+Which combination of steps should a solutions architect take to automate this task? (Choose two.)
+
+- A. Launch the EC2 instance into the same Availability Zone as the EFS file system.
+- B. Install an AWS DataSync agent in the on-premises data center.
+- C. Create a secondary Amazon Elastic Block Store (Amazon EBS) volume on the EC2 instance for the data.
+- D. Manually use an operating system copy command to push the data to the EC2 instance.
+- E. Use AWS DataSync to create a suitable location configuration for the on-premises SFTP server.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +----------------------+     +------------------------+
+ | On-premises SFTP       | --> | AWS DataSync agent   | --> | Amazon EFS             |
+ | server (NFS-based,     |     | (deployed on-prem,    |     | file system            |
+ |  200 GB data)          |     |  reads NFS location)  |     | (mounted by EC2)       |
+ +------------------------+     +----------------------+     +------------------------+
+```
+
+**Correct Answers: B, E**
+
+**Explanation:** AWS DataSync automates data transfer between on-premises NFS/SMB storage and AWS storage services like EFS. Installing the DataSync agent in the on-premises data center (B) lets it read from the local NFS-based file system, and configuring DataSync with a location configuration for the on-premises SFTP server's file system (E) defines the source so DataSync can automatically and efficiently copy the 200 GB of data into the EFS file system, with no manual scripting required.
+
+- A. Wrong — Amazon EFS is a Regional, multi-AZ service accessed through mount targets in each Availability Zone; the EC2 instance does not need to be launched into the "same Availability Zone as the EFS file system" for this migration to work, and this step doesn't address automating the data transfer itself.
+- C. Wrong — The requirement is to use an EFS file system, not EBS; adding a secondary EBS volume doesn't fulfill the stated target storage or help automate the transfer.
+- D. Wrong — Manually running an OS copy command is a manual process, not an automated one, which conflicts directly with the requirement to "automate this task."
+
+## Question 75
+
+A company hosts a containerized web application on a fleet of on-premises servers that process incoming requests. The number of requests is growing quickly. The on-premises servers cannot handle the increased number of requests. The company wants to move the application to AWS with minimum code changes and minimum development effort.
+
+Which solution will meet these requirements with the LEAST operational overhead?
+
+- A. Use AWS Fargate on Amazon Elastic Container Service (Amazon ECS) to run the containerized web application with Service Auto Scaling. Use an Application Load Balancer to distribute the incoming requests.
+- B. Use two Amazon EC2 instances to host the containerized web application. Use an Application Load Balancer to distribute the incoming requests.
+- C. Use AWS Lambda with a new code that uses one of the supported languages. Create multiple Lambda functions to support the load. Use Amazon API Gateway as an entry point to the Lambda functions.
+- D. Use a high performance computing (HPC) solution such as AWS ParallelCluster to establish an HPC cluster that can process the incoming requests at the appropriate scale.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +----------------------------+     +------------------------+
+ | Application Load       | --> | Amazon ECS (Fargate)      | --> | Containerized web app |
+ | Balancer                |     | Service Auto Scaling       |     | (existing containers, |
+ +------------------------+     +----------------------------+     |  no code changes)      |
+                                                                     +------------------------+
+```
+
+**Correct Answer: A**
+
+**Explanation:** The application is already containerized, so running it on Amazon ECS with the Fargate launch type lets the existing container images run unchanged — no code rewrite needed — while Fargate removes the need to provision or manage any underlying servers. Service Auto Scaling automatically adjusts the number of running tasks to handle the growing request volume, and the Application Load Balancer distributes traffic across them, together giving the least operational overhead of the options presented.
+
+- B. Wrong — Hosting on a fixed pair of EC2 instances requires the company to provision, patch, and manage the underlying servers and manually scale capacity, which is more operational overhead than a serverless Fargate/ECS approach.
+- C. Wrong — Rewriting the application as new Lambda functions in a supported language directly conflicts with the requirement for "minimum code changes and minimum development effort," since the existing containerized code would need to be re-architected into function handlers.
+- D. Wrong — An HPC cluster like AWS ParallelCluster is designed for tightly coupled, compute-intensive scientific/technical workloads (e.g., simulations), not for scaling a containerized web application serving incoming HTTP requests, and it would require significant re-architecture and operational management.
