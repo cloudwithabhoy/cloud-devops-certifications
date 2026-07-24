@@ -2450,3 +2450,795 @@ Which solution will meet these requirements with the LEAST operational overhead?
 - B. Wrong — Hosting on a fixed pair of EC2 instances requires the company to provision, patch, and manage the underlying servers and manually scale capacity, which is more operational overhead than a serverless Fargate/ECS approach.
 - C. Wrong — Rewriting the application as new Lambda functions in a supported language directly conflicts with the requirement for "minimum code changes and minimum development effort," since the existing containerized code would need to be re-architected into function handlers.
 - D. Wrong — An HPC cluster like AWS ParallelCluster is designed for tightly coupled, compute-intensive scientific/technical workloads (e.g., simulations), not for scaling a containerized web application serving incoming HTTP requests, and it would require significant re-architecture and operational management.
+
+## Question 76
+
+As part of budget planning, management wants a report of AWS billed items listed by user. The data will be used to create department budgets. A solutions architect needs to determine the most efficient way to obtain this report information.
+
+Which solution meets these requirements?
+
+- A. Run a query with Amazon Athena to generate the report.
+- B. Create a report in Cost Explorer and download the report.
+- C. Access the bill details from the billing dashboard and download the bill.
+- D. Modify a cost budget in AWS Budgets to alert with Amazon Simple Email Service (Amazon SES).
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +----------------------------+     +------------------------+
+ | AWS billing data        | --> | AWS Cost Explorer          | --> | Report grouped by user  |
+ | (cost allocation tags)  |     | (create report, group by   |     | / tag, downloadable for |
+ |                          |     |  tag/linked account/user)  |     | department budgeting    |
+ +------------------------+     +----------------------------+     +------------------------+
+```
+
+**Correct Answer: B**
+
+**Explanation:** AWS Cost Explorer lets you build a custom report that filters and groups billed costs (for example, by cost allocation tag representing user or department), then save and download that report — directly producing the "billed items listed by user" data needed for department budgeting, with no custom querying or infrastructure required.
+
+- A. Wrong — Amazon Athena can query billing data (e.g., Cost and Usage Reports in S3) but requires setting up the CUR export, an S3 bucket, a Glue/Athena table, and writing SQL — significantly more setup effort than using Cost Explorer's built-in reporting.
+- C. Wrong — The billing dashboard shows overall bill totals and details but doesn't provide a way to break down and group costs specifically by user for budgeting purposes the way Cost Explorer's custom reports do.
+- D. Wrong — AWS Budgets with an SES alert notifies when spending crosses a threshold; it doesn't generate a report of billed items broken down by user, so it doesn't meet the stated reporting requirement.
+
+## Question 77
+
+A company hosts its web application on AWS using seven Amazon EC2 instances. The company requires that the IP addresses of all healthy EC2 instances be returned in response to DNS queries.
+
+Which policy should be used to meet this requirement?
+
+- A. Simple routing policy
+- B. Latency routing policy
+- C. Multivalue routing policy
+- D. Geolocation routing policy
+
+**Architecture Diagram:**
+
+```
+ +----------+     +------------------------+     +------------------------+
+ | DNS query| --> | Amazon Route 53        | --> | Up to 8 healthy EC2   |
+ |          |     | Multivalue Answer       |     | instance IP addresses |
+ |          |     | routing policy          |     | returned in response  |
+ +----------+     +------------------------+     +------------------------+
+```
+
+**Correct Answer: C**
+
+**Explanation:** A multivalue answer routing policy lets Route 53 return multiple IP addresses (up to eight) in response to a single DNS query, with each associated with a health check so that only currently healthy resources are returned — directly matching the requirement to return the IP addresses of all healthy EC2 instances.
+
+- A. Wrong — Simple routing returns a single set of values with no health check-based filtering built into its basic form, and it's designed for a single resource rather than distributing/returning multiple healthy endpoints.
+- B. Wrong — Latency routing returns the single Region-based record with the lowest latency for the user, not a set of all healthy instance IPs.
+- D. Wrong — Geolocation routing selects a single record based on the geographic location of the requester, not a set of all currently healthy IP addresses.
+
+## Question 78
+
+A company runs analytics software on Amazon EC2 instances. The software accepts job requests from users to process data that has been uploaded to Amazon S3. Users report that some submitted data is not being processed. Amazon CloudWatch reveals that the EC2 instances have a consistent CPU utilization at or near 100%. The company wants to improve system performance and scale the system based on user load.
+
+What should a solutions architect do to meet these requirements?
+
+- A. Create a copy of the instance. Place all instances behind an Application Load Balancer.
+- B. Create an S3 VPC endpoint for Amazon S3. Update the software to reference the endpoint.
+- C. Stop the EC2 instances. Modify the instance type to one with a more powerful CPU and more memory. Restart the instances.
+- D. Route incoming requests to Amazon Simple Queue Service (Amazon SQS). Configure an EC2 Auto Scaling group based on queue size. Update the software to read from the queue.
+
+**Architecture Diagram:**
+
+```
+ +------------------+     +------------------------+     +----------------------------+
+ | Job requests     | --> | Amazon SQS queue       | --> | EC2 Auto Scaling group   |
+ | (users, S3 data) |     | (buffers job requests) |     | (scales on queue size,    |
+ +------------------+     +------------------------+     |  reads jobs from queue)   |
+                                                            +----------------------------+
+```
+
+**Correct Answer: D**
+
+**Explanation:** Routing incoming job requests through an SQS queue decouples request submission from processing, so no requests are dropped even when instances are momentarily saturated — jobs simply wait in the queue. Configuring the EC2 Auto Scaling group to scale based on queue size lets the fleet grow and shrink in direct response to actual user load, which both fixes the "not being processed" data loss caused by 100% CPU saturation and satisfies the requirement to scale based on demand.
+
+- A. Wrong — Placing instances behind an ALB assumes the workload is request/response HTTP traffic distributed evenly, but it doesn't address the root cause (jobs overwhelming fixed capacity) or provide scaling tied to actual job backlog the way an SQS-driven Auto Scaling group does.
+- B. Wrong — An S3 VPC endpoint improves network path/privacy for S3 access but does nothing to address CPU saturation or provide scaling based on user load.
+- C. Wrong — Resizing to a more powerful instance type increases capacity for a fixed, single instance but doesn't scale with variable user load and still risks the same saturation problem recurring as demand grows further; it also requires downtime to stop/resize/restart.
+
+## Question 79
+
+A solutions architect needs to design a highly available application consisting of web, application, and database tiers. HTTPS content delivery should be as close to the edge as possible, with the least delivery time.
+
+Which solution meets these requirements and is MOST secure?
+
+- A. Configure a public Application Load Balancer (ALB) with multiple redundant Amazon EC2 instances in public subnets. Configure Amazon CloudFront to deliver HTTPS content using the public ALB as the origin.
+- B. Configure a public Application Load Balancer with multiple redundant Amazon EC2 instances in private subnets. Configure Amazon CloudFront to deliver HTTPS content using the EC2 instances as the origin.
+- C. Configure a public Application Load Balancer (ALB) with multiple redundant Amazon EC2 instances in private subnets. Configure Amazon CloudFront to deliver HTTPS content using the public ALB as the origin.
+- D. Configure a public Application Load Balancer with multiple redundant Amazon EC2 instances in public subnets. Configure Amazon CloudFront to deliver HTTPS content using the EC2 instances as the origin.
+
+**Architecture Diagram:**
+
+```
+ +----------+     +------------------------+     +------------------------+     +------------------+
+ | Users    | --> | Amazon CloudFront      | --> | Public ALB             | --> | EC2 instances    |
+ |          |     | (HTTPS, edge delivery) |     | (origin, public subnet)|     | (private subnets)|
+ +----------+     +------------------------+     +------------------------+     +------------------+
+```
+
+**Correct Answer: C**
+
+**Explanation:** Placing the EC2 instances in private subnets removes their direct exposure to the internet, and routing all traffic through the public ALB (which CloudFront uses as its origin) keeps a single, controlled entry point into the application. CloudFront still delivers HTTPS content from edge locations close to users for the least delivery time, so this combination achieves both the edge-performance requirement and the most secure network posture of the four options.
+
+- A. Wrong — Placing the EC2 instances in public subnets exposes them directly to the internet, which is less secure than keeping them in private subnets behind the ALB.
+- B. Wrong — Using the EC2 instances directly as the CloudFront origin bypasses the load balancer entirely, losing load-balancing/health-check benefits, and is an atypical, harder-to-secure origin configuration compared to using the ALB as the origin.
+- D. Wrong — This combines both weaknesses: EC2 instances directly exposed in public subnets, and CloudFront bypassing the ALB to origin directly from the instances, making it the least secure option.
+
+## Question 80
+
+A company has a multi-tier application that runs six front-end web servers in an Amazon EC2 Auto Scaling group in a single Availability Zone behind an Application Load Balancer (ALB). A solutions architect needs to modify the infrastructure to be highly available without modifying the application.
+
+Which architecture should the solutions architect choose that provides high availability?
+
+- A. Create an Auto Scaling group that uses three instances across each of two Regions.
+- B. Modify the Auto Scaling group to use three instances across each of two Availability Zones.
+- C. Create an Auto Scaling template that can be used to quickly create more instances in another Region.
+- D. Change the ALB in front of the Amazon EC2 instances in a round-robin configuration to balance traffic to the web tier.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+
+ | Application Load        |
+ | Balancer                 |
+ +------------------------+
+        |              |
+        v              v
+ +--------------+  +--------------+
+ | AZ-a: 3 EC2  |  | AZ-b: 3 EC2  |
+ | instances    |  | instances    |
+ | (Auto Scaling|  | (Auto Scaling|
+ |  group)      |  |  group)      |
+ +--------------+  +--------------+
+```
+
+**Correct Answer: B**
+
+**Explanation:** Spreading the same six instances as three per Availability Zone within the existing Auto Scaling group (still behind the same ALB) removes the single-AZ point of failure and provides high availability, all without changing a single line of the application itself — the minimal, correct fix for the stated requirement.
+
+- A. Wrong — Spanning multiple Regions introduces significant additional complexity (cross-Region networking, data replication, Region-aware routing) far beyond what's needed to fix a single-AZ availability gap, and isn't a simple "modify the infrastructure" change.
+- C. Wrong — A launch template that could "quickly create more instances in another Region" is a manual, reactive process, not the automatic, continuously available multi-AZ architecture the requirement calls for.
+- D. Wrong — An ALB already balances traffic across targets by default; there's no "round-robin configuration" change needed, and this option doesn't address the actual problem, which is that all instances sit in a single Availability Zone.
+
+## Question 81
+
+A company's website provides users with downloadable historical performance reports. The website needs a solution that will scale to meet the company's website demands globally. The solution should be cost-effective, limit the provisioning of infrastructure resources, and provide the fastest possible response time.
+
+Which combination should a solutions architect recommend to meet these requirements?
+
+- A. Amazon CloudFront and Amazon S3
+- B. AWS Lambda and Amazon DynamoDB
+- C. Application Load Balancer with Amazon EC2 Auto Scaling
+- D. Amazon Route 53 with internal Application Load Balancers
+
+**Architecture Diagram:**
+
+```
+ +----------+     +------------------------+     +------------------------+
+ | Users    | --> | Amazon CloudFront      | --> | Amazon S3 bucket       |
+ | (global) |     | (edge caching, fastest |     | (downloadable reports, |
+ |          |     |  response time)         |     |  no servers to manage)|
+ +----------+     +------------------------+     +------------------------+
+```
+
+**Correct Answer: A**
+
+**Explanation:** The reports are static downloadable files, so storing them in Amazon S3 requires no infrastructure provisioning at all, and fronting the bucket with Amazon CloudFront caches those files at edge locations worldwide, giving the fastest possible response time for a global audience — all at S3/CloudFront's pay-per-use pricing, which is the most cost-effective fit for this static-content use case.
+
+- B. Wrong — Lambda and DynamoDB are suited for dynamic, compute/data-driven workloads; they add unnecessary complexity and cost for simply serving downloadable static report files.
+- C. Wrong — An ALB with EC2 Auto Scaling still requires provisioning and managing EC2 infrastructure, which conflicts with the requirement to "limit the provisioning of infrastructure resources," and doesn't provide edge caching for global response time the way CloudFront does.
+- D. Wrong — Route 53 with internal Application Load Balancers still requires running and managing EC2/container infrastructure behind those load balancers, and internal ALBs aren't even internet-facing, so this doesn't meet the global, low-provisioning, fast-response requirements.
+
+## Question 82
+
+A company uses 50 TB of data for reporting. The company wants to move this data from on premises to AWS. A custom application in the company's data center runs a weekly data transformation job. The company plans to pause the application until the data transfer is complete and needs to begin the transfer process as soon as possible.
+
+The data center does not have any available network bandwidth for additional workloads. A solutions architect must transfer the data and must configure the transformation job to continue to run in the AWS Cloud.
+
+Which solution will meet these requirements with the LEAST operational overhead?
+
+- A. Use AWS DataSync to move the data. Create a custom transformation job by using AWS Glue.
+- B. Order an AWS Snowcone device to move the data. Deploy the transformation application to the device.
+- C. Order an AWS Snowball Edge Storage Optimized device. Copy the data to the device. Create a custom transformation job by using AWS Glue.
+- D. Order an AWS Snowball Edge Storage Optimized device that includes Amazon EC2 compute. Copy the data to the device. Create a new EC2 instance on AWS to run the transformation application.
+
+**Architecture Diagram:**
+
+```
+ +------------------+     ship device     +------------------------+     +------------------------+
+ | On-premises data | ------------------> | AWS Snowball Edge      | --> | Amazon S3 (imported   |
+ | (50 TB, no spare |                     | Storage Optimized      |     |  data)                 |
+ |  bandwidth)      |                     +------------------------+     +------------------------+
+                                                                                     |
+                                                                                     v
+                                                                          +------------------------+
+                                                                          | AWS Glue                |
+                                                                          | (managed transformation |
+                                                                          |  job, runs in AWS)      |
+                                                                          +------------------------+
+```
+
+**Correct Answer: C**
+
+**Explanation:** With no spare network bandwidth, physically shipping the 50 TB on an AWS Snowball Edge Storage Optimized device is the fastest and only practical way to move that volume of data without a network transfer. Once the data lands in AWS (via S3), recreating the weekly transformation job as an AWS Glue job means the company runs it as a fully managed ETL service in the cloud going forward, with no servers to provision or manage — the least operational overhead of the options that actually satisfy both the offline-transfer and continue-in-AWS requirements.
+
+- A. Wrong — AWS DataSync transfers data over the network, but the data center has no available bandwidth for additional workloads, so DataSync cannot be used here regardless of how convenient it would otherwise be.
+- B. Wrong — AWS Snowcone has a much smaller capacity (up to about 8 TB) than the 50 TB that needs to move, and deploying the transformation application onto the device runs it on the Snowcone itself rather than "in the AWS Cloud" as required.
+- D. Wrong — Ordering a Snowball Edge with EC2 compute and standing up a new EC2 instance to run the transformation application requires provisioning and managing EC2 infrastructure, which is more operational overhead than using the fully managed AWS Glue service.
+
+## Question 83 (Choose two)
+
+A company is preparing a new data platform that will ingest real-time streaming data from multiple sources. The company needs to transform the data before writing the data to Amazon S3. The company needs the ability to use SQL to query the transformed data.
+
+Which solutions will meet these requirements? (Choose two.)
+
+- A. Use Amazon Kinesis Data Streams to stream the data. Use Amazon Kinesis Data Analytics to transform the data. Use Amazon Kinesis Data Firehose to write the data to Amazon S3. Use Amazon Athena to query the transformed data from Amazon S3.
+- B. Use Amazon Managed Streaming for Apache Kafka (Amazon MSK) to stream the data. Use AWS Glue to transform the data and to write the data to Amazon S3. Use Amazon Athena to query the transformed data from Amazon S3.
+- C. Use AWS Database Migration Service (AWS DMS) to ingest the data. Use Amazon EMR to transform the data and to write the data to Amazon S3. Use Amazon Athena to query the transformed data from Amazon S3.
+- D. Use Amazon Managed Streaming for Apache Kafka (Amazon MSK) to stream the data. Use Amazon Kinesis Data Analytics to transform the data and to write the data to Amazon S3. Use the Amazon RDS query editor to query the transformed data from Amazon S3.
+- E. Use Amazon Kinesis Data Streams to stream the data. Use AWS Glue to transform the data. Use Amazon Kinesis Data Firehose to write the data to Amazon S3. Use the Amazon RDS query editor to query the transformed data from Amazon S3.
+
+**Architecture Diagram:**
+
+```
+ +------------------+     +------------------------+     +------------------------+     +------------------+
+ | Multiple sources | --> | Kinesis Data Streams / | --> | Transform (Kinesis     | --> | Amazon S3        |
+ | (real-time data) |     | Amazon MSK              |     | Data Analytics / Glue) |     +------------------+
+ +------------------+     +------------------------+     +------------------------+              |
+                                                                                                    v
+                                                                                          +------------------+
+                                                                                          | Amazon Athena    |
+                                                                                          | (SQL query)      |
+                                                                                          +------------------+
+```
+
+**Correct Answers: A, B**
+
+**Explanation:** Both options describe complete, coherent, fully managed streaming pipelines: (A) Kinesis Data Streams ingests the real-time data, Kinesis Data Analytics transforms it with SQL, Kinesis Data Firehose delivers the transformed output to S3, and Athena runs ad-hoc SQL queries against it. (B) Amazon MSK ingests the streaming data from multiple sources, AWS Glue (which supports streaming ETL jobs) transforms it and writes it to S3, and Athena again provides the SQL query layer. Both pipelines correctly end with Athena, a serverless SQL query engine built to query data directly in S3.
+
+- C. Wrong — AWS DMS is designed to migrate/replicate data from source databases, not to ingest general real-time streaming data from multiple heterogeneous sources; it's the wrong ingestion tool for this scenario.
+- D. Wrong — The Amazon RDS query editor runs SQL against an RDS database instance; it cannot query data stored as files in Amazon S3, so this pipeline fails at the final query step.
+- E. Wrong — Same flaw as option D: the RDS query editor cannot be used to query transformed data sitting in an S3 bucket, since it only queries RDS databases, not S3.
+
+## Question 84
+
+A company needs to review its AWS Cloud deployment to ensure that its Amazon S3 buckets do not have unauthorized configuration changes.
+
+What should a solutions architect do to accomplish this goal?
+
+- A. Turn on AWS Config with the appropriate rules.
+- B. Turn on AWS Trusted Advisor with the appropriate checks.
+- C. Turn on Amazon Inspector with the appropriate assessment template.
+- D. Turn on Amazon S3 server access logging. Configure Amazon EventBridge (Amazon CloudWatch Events).
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +----------------------------+     +------------------------+
+ | Amazon S3 bucket       | --> | AWS Config rule            | --> | Compliance finding /   |
+ | (configuration change) |     | (e.g. s3-bucket-public-    |     | remediation trigger    |
+ +------------------------+     |  read-prohibited)          |     +------------------------+
+                                +----------------------------+
+```
+
+**Correct Answer: A**
+
+**Explanation:** AWS Config continuously records the configuration state of resources like S3 buckets and evaluates them against rules (managed or custom), flagging any configuration drift or unauthorized change as noncompliant — directly matching the requirement to detect unauthorized S3 bucket configuration changes.
+
+- B. Wrong — AWS Trusted Advisor provides best-practice checks across cost, performance, security, and fault tolerance at a point-in-time, but it isn't designed for continuous, rule-based tracking of configuration changes to specific resources over time.
+- C. Wrong — Amazon Inspector performs automated vulnerability and security assessments of EC2 instances and container images; it doesn't monitor or evaluate S3 bucket configuration settings.
+- D. Wrong — S3 server access logging records requests made to a bucket (who accessed what), not configuration changes to the bucket's settings, so it doesn't detect unauthorized configuration changes on its own.
+
+## Question 85 (Choose two)
+
+A company is designing a cloud communications platform that is driven by APIs. The application is hosted on Amazon EC2 instances behind a Network Load Balancer (NLB). The company uses Amazon API Gateway to provide external users with access to the application through APIs. The company wants to protect the platform against web exploits like SQL injection and also wants to detect and mitigate large, sophisticated DDoS attacks.
+
+Which combination of solutions provides the MOST protection? (Choose two.)
+
+- A. Use AWS WAF to protect the NLB.
+- B. Use AWS Shield Advanced with the NLB.
+- C. Use AWS WAF to protect Amazon API Gateway.
+- D. Use Amazon GuardDuty with AWS Shield Standard.
+- E. Use AWS Shield Standard with Amazon API Gateway.
+
+**Architecture Diagram:**
+
+```
+ +----------+     +------------------------+     +----------------------------+
+ | External | --> | Amazon API Gateway     | --> | Network Load Balancer      |
+ | users    |     | (AWS WAF: blocks SQLi/ |     | (AWS Shield Advanced:      |
+ |          |     |  XSS web exploits)     |     |  detects/mitigates large,  |
+ +----------+     +------------------------+     |  sophisticated DDoS)       |
+                                                   +----------------------------+
+```
+
+**Correct Answers: B, C**
+
+**Explanation:** AWS WAF attaches to Amazon API Gateway (not to a Network Load Balancer, since WAF operates at Layer 7 and NLB is a Layer 4 service) and can inspect API requests for web exploits like SQL injection, satisfying that requirement. AWS Shield Advanced provides enhanced, automated detection and mitigation of large and sophisticated DDoS attacks and can protect resources such as an NLB (via its associated Elastic IP addresses), directly satisfying the DDoS requirement. Together these cover both stated threats at the correct layer for each resource.
+
+- A. Wrong — AWS WAF cannot be attached to a Network Load Balancer; WAF web ACLs only support Layer 7 resources like API Gateway, CloudFront, ALB, and AppSync, not NLBs.
+- D. Wrong — Amazon GuardDuty is a threat-detection service that generates findings, not a DDoS mitigation tool, and AWS Shield Standard only provides basic, automatic DDoS protection that isn't sufficient for large, sophisticated attacks — that level of protection requires Shield Advanced.
+- E. Wrong — AWS Shield Standard again provides only baseline DDoS protection, not the advanced detection/mitigation needed for large, sophisticated attacks, and this option omits any web exploit (SQL injection) protection entirely.
+
+## Question 86
+
+A company has a serverless website with millions of objects in an Amazon S3 bucket. The company uses the S3 bucket as the origin for an Amazon CloudFront distribution. The company did not set encryption on the S3 bucket before the objects were loaded. A solutions architect needs to enable encryption for all existing objects and for all objects that are added to the S3 bucket in the future.
+
+Which solution will meet these requirements with the LEAST amount of effort?
+
+- A. Create a new S3 bucket. Turn on the default encryption settings for the new S3 bucket. Download all existing objects to temporary local storage. Upload the objects to the new S3 bucket.
+- B. Turn on the default encryption settings for the S3 bucket. Use the S3 Inventory feature to create a .csv file that lists the unencrypted objects. Run an S3 Batch Operations job that uses the copy command to encrypt those objects.
+- C. Create a new encryption key by using AWS Key Management Service (AWS KMS). Change the settings on the S3 bucket to use server-side encryption with AWS KMS managed encryption keys (SSE-KMS). Turn on versioning for the S3 bucket.
+- D. Navigate to Amazon S3 in the AWS Management Console. Browse the S3 bucket's objects. Sort by the encryption field. Select each unencrypted object. Use the Modify button to apply default encryption settings to every unencrypted object in the S3 bucket.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +----------------------------+     +------------------------+
+ | S3 bucket               | --> | S3 Inventory report        | --> | S3 Batch Operations    |
+ | (default encryption ON  |     | (.csv of unencrypted        |     | job (copy command      |
+ |  for new objects)        |     |  existing objects)          |     |  re-encrypts existing  |
+ +------------------------+     +----------------------------+     |  objects at scale)     |
+                                                                     +------------------------+
+```
+
+**Correct Answer: B**
+
+**Explanation:** Turning on default encryption ensures every future object is automatically encrypted with no further action. For the millions of existing unencrypted objects, S3 Inventory generates a list of them, and an S3 Batch Operations job can then run a copy-in-place operation across all of them at scale (re-writing each object with encryption applied) — all without manually touching individual objects or standing up a new bucket, making this the lowest-effort solution.
+
+- A. Wrong — Manually downloading millions of objects to local storage and re-uploading them to a new bucket is extremely effort-intensive and slow, and also requires updating the CloudFront origin to point at the new bucket.
+- C. Wrong — Changing the bucket's default encryption to SSE-KMS (and turning on versioning) only affects newly written objects going forward; it does nothing to encrypt the millions of objects that already exist unencrypted in the bucket.
+- D. Wrong — Manually selecting and modifying encryption settings for each unencrypted object one at a time is completely impractical at a scale of millions of objects and is far more effort than a Batch Operations job.
+
+## Question 87
+
+A company runs a web-based portal that provides users with global breaking news, local alerts, and weather updates. The portal delivers each user a personalized view by using a mixture of static and dynamic content. Content is served over HTTPS through an API server running on an Amazon EC2 instance behind an Application Load Balancer (ALB). The company wants the portal to provide this content to its users across the world as quickly as possible.
+
+How should a solutions architect design the application to ensure the LEAST amount of latency for all users?
+
+- A. Deploy the application stack in a single AWS Region. Use Amazon CloudFront to serve all static and dynamic content by specifying the ALB as an origin.
+- B. Deploy the application stack in two AWS Regions. Use an Amazon Route 53 latency routing policy to serve all content from the ALB in the closest Region.
+- C. Deploy the application stack in a single AWS Region. Use Amazon CloudFront to serve the static content. Serve the dynamic content directly from the ALB.
+- D. Deploy the application stack in two AWS Regions. Use an Amazon Route 53 geolocation routing policy to serve all content from the ALB in the closest Region.
+
+**Architecture Diagram:**
+
+```
+ +----------+     +------------------------+     +------------------------+
+ | Users    | --> | Amazon CloudFront      | --> | Application Load       |
+ | (global) |     | (static content cached |     | Balancer (origin,      |
+ |          |     |  at edge; dynamic       |     |  single Region)        |
+ |          |     |  content routed over    |     +------------------------+
+ |          |     |  CloudFront's optimized |
+ |          |     |  network path)          |
+ +----------+     +------------------------+
+```
+
+**Correct Answer: A**
+
+**Explanation:** CloudFront can serve both static and dynamic content from a single origin: static content gets cached at edge locations for near-instant delivery, while requests for dynamic content still enter through the nearest CloudFront edge location and travel back to the origin over AWS's optimized backbone network rather than the public internet, reducing latency versus a direct connection — all without needing to deploy or synchronize the application stack across multiple Regions.
+
+- B. Wrong — Deploying in two Regions with Route 53 latency routing helps route users to whichever Region is closer, but running only two Regions still leaves users far from both underserved, and it adds the operational complexity of keeping application stacks (and any state) synchronized across Regions — more effort than CloudFront's globally distributed edge network for the same or better latency benefit.
+- C. Wrong — Serving dynamic content directly from the ALB (bypassing CloudFront) means every dynamic request travels the full public internet path from the user to the single Region, missing out on the latency benefit CloudFront provides even for non-cacheable content.
+- D. Wrong — Same multi-Region operational complexity as option B, and Route 53 geolocation routing directs users based on geographic location rather than actual network latency, which can route a user to a Region that isn't actually the fastest for them.
+
+## Question 88
+
+A solutions architect is designing a VPC with public and private subnets. The VPC and subnets use IPv4 CIDR blocks. There is one public subnet and one private subnet in each of three Availability Zones (AZs) for high availability. An internet gateway is used to provide internet access for the public subnets. The private subnets require access to the internet to allow Amazon EC2 instances to download software updates.
+
+What should the solutions architect do to enable Internet access for the private subnets?
+
+- A. Create three NAT gateways, one for each public subnet in each AZ. Create a private route table for each AZ that forwards non-VPC traffic to the NAT gateway in its AZ.
+- B. Create three NAT instances, one for each private subnet in each AZ. Create a private route table for each AZ that forwards non-VPC traffic to the NAT instance in its AZ.
+- C. Create a second internet gateway on one of the private subnets. Update the route table for the private subnets that forward non-VPC traffic to the private internet gateway.
+- D. Create an egress-only internet gateway on one of the public subnets. Update the route table for the private subnets that forward non-VPC traffic to the egress-only Internet gateway.
+
+**Architecture Diagram:**
+
+```
+ +--------------------+     +--------------------+     +--------------------+
+ | AZ-a: Public subnet |     | AZ-b: Public subnet |     | AZ-c: Public subnet |
+ | + NAT Gateway        |     | + NAT Gateway        |     | + NAT Gateway        |
+ +--------------------+     +--------------------+     +--------------------+
+          |                          |                          |
+          v                          v                          v
+ +--------------------+     +--------------------+     +--------------------+
+ | AZ-a: Private subnet|     | AZ-b: Private subnet|     | AZ-c: Private subnet|
+ | (route: 0.0.0.0/0 ->|     | (route: 0.0.0.0/0 ->|     | (route: 0.0.0.0/0 ->|
+ |  NAT GW in AZ-a)    |     |  NAT GW in AZ-b)    |     |  NAT GW in AZ-c)    |
+ +--------------------+     +--------------------+     +--------------------+
+```
+
+**Correct Answer: A**
+
+**Explanation:** A NAT gateway must be placed in a public subnet (so it can reach the internet gateway) and provides outbound-only internet access for instances in private subnets. Creating one NAT gateway per AZ, each with its own per-AZ private route table pointing to the NAT gateway in that same AZ, preserves high availability — if one AZ's NAT gateway or the AZ itself fails, the other AZs' private subnets are unaffected, and traffic never needs to cross AZ boundaries.
+
+- B. Wrong — NAT instances (and NAT gateways) must be placed in a public subnet to route traffic to the internet gateway; placing them in the private subnets as described here would not give them the internet path needed to function as NAT devices.
+- C. Wrong — A VPC can only have one internet gateway attached at a time, and attaching an internet gateway route directly to private subnets would make them public by definition, defeating the purpose of keeping them private.
+- D. Wrong — An egress-only internet gateway only works with IPv6 traffic; since this VPC and its subnets use IPv4 CIDR blocks, an egress-only internet gateway cannot provide the required IPv4 internet access.
+
+## Question 89
+
+A company has an application that runs on Amazon EC2 instances and uses an Amazon Aurora database. The EC2 instances connect to the database by using user names and passwords that are stored locally in a file. The company wants to minimize the operational overhead of credential management.
+
+What should a solutions architect do to accomplish this goal?
+
+- A. Use AWS Secrets Manager. Turn on automatic rotation.
+- B. Use AWS Systems Manager Parameter Store. Turn on automatic rotation.
+- C. Create an Amazon S3 bucket to store objects that are encrypted with an AWS Key Management Service (AWS KMS) encryption key. Migrate the credential file to the S3 bucket. Point the application to the S3 bucket.
+- D. Create an encrypted Amazon Elastic Block Store (Amazon EBS) volume for each EC2 instance. Attach the new EBS volume to each EC2 instance. Migrate the credential file to the new EBS volume. Point the application to the new EBS volume.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     retrieve creds     +------------------------+
+ | EC2 instances           | <--------------------- | AWS Secrets Manager    |
+ | (application)           |                         | (auto-rotates DB      |
+ +------------------------+                         |  credentials)          |
+                                                       +------------------------+
+                                                                  |
+                                                                  v
+                                                       +------------------------+
+                                                       | Amazon Aurora DB       |
+                                                       +------------------------+
+```
+
+**Correct Answer: A**
+
+**Explanation:** AWS Secrets Manager natively stores database credentials and, with automatic rotation turned on, periodically rotates the Aurora database password on a schedule using a built-in Lambda rotation function — with no custom code or manual file management required, directly minimizing the operational overhead of credential management.
+
+- B. Wrong — Systems Manager Parameter Store SecureString parameters can store credentials, but they don't have Secrets Manager's built-in automatic rotation integration for RDS/Aurora; achieving rotation would require significant custom automation.
+- C. Wrong — Storing the credential file in an encrypted S3 bucket still requires the company to manually manage and rotate credentials in the file itself; it doesn't reduce credential management overhead at all, only changes where the file is stored.
+- D. Wrong — Moving the credential file to an encrypted EBS volume is just a different storage location for the same locally-stored file; it doesn't add rotation or reduce the manual overhead of managing credentials.
+
+## Question 90
+
+A solutions architect is using Amazon S3 to design the storage architecture of a new digital media application. The media files must be resilient to the loss of an Availability Zone. Some files are accessed frequently while other files are rarely accessed in an unpredictable pattern. The solutions architect must minimize the costs of storing and retrieving the media files.
+
+Which storage option meets these requirements?
+
+- A. S3 Standard
+- B. S3 Intelligent-Tiering
+- C. S3 Standard-Infrequent Access (S3 Standard-IA)
+- D. S3 One Zone-Infrequent Access (S3 One Zone-IA)
+
+**Architecture Diagram:**
+
+```
+ +------------------+     +----------------------------+     +------------------------+
+ | Media files      | --> | S3 Intelligent-Tiering      | --> | Multi-AZ resilient    |
+ | (unpredictable   |     | (auto-moves objects between |     | storage, no retrieval |
+ |  access pattern) |     |  frequent/infrequent tiers) |     | fees                   |
+ +------------------+     +----------------------------+     +------------------------+
+```
+
+**Correct Answer: B**
+
+**Explanation:** S3 Intelligent-Tiering automatically monitors access patterns and moves objects between a frequent-access tier and lower-cost infrequent-access tiers as needed, with no retrieval fees and no operational effort — a direct fit for files whose access pattern is unpredictable. It also stores data across multiple Availability Zones, satisfying the requirement to be resilient to the loss of an AZ, while minimizing cost for a mixed and unpredictable access pattern.
+
+- A. Wrong — S3 Standard is resilient across multiple AZs but always charges frequent-access pricing, so it doesn't minimize costs for the files that are rarely accessed.
+- C. Wrong — S3 Standard-IA is cheaper to store but charges a retrieval fee and is intended for data with a known, predictable infrequent-access pattern; applying it to frequently-accessed files or unpredictable access would increase costs due to retrieval fees.
+- D. Wrong — S3 One Zone-IA stores data in only a single Availability Zone, so it is not resilient to the loss of an Availability Zone, directly violating that requirement.
+
+## Question 91
+
+A company has an ecommerce checkout workflow that writes an order to a database and calls a service to process the payment. Users are experiencing timeouts during the checkout process. When users resubmit the checkout form, multiple unique orders are created for the same desired transaction.
+
+How should a solutions architect refactor this workflow to prevent the creation of multiple orders?
+
+- A. Configure the web application to send an order message to Amazon Kinesis Data Firehose. Set the payment service to retrieve the message from Kinesis Data Firehose and process the order.
+- B. Create a rule in AWS CloudTrail to invoke an AWS Lambda function based on the logged application path request. Use Lambda to query the database, call the payment service, and pass in the order information.
+- C. Store the order in the database. Send a message that includes the order number to Amazon Simple Notification Service (Amazon SNS). Set the payment service to poll Amazon SNS, retrieve the message, and process the order.
+- D. Store the order in the database. Send a message that includes the order number to an Amazon Simple Queue Service (Amazon SQS) FIFO queue. Set the payment service to retrieve the message and process the order. Delete the message from the queue.
+
+**Architecture Diagram:**
+
+```
+ +------------------+     +------------------------+     +------------------------+
+ | Checkout form    | --> | Database (order stored)| --> | SQS FIFO queue         |
+ | (possible retry/ |     +------------------------+     | (message deduplication,|
+ |  resubmit)       |                                     |  exactly-once delivery)|
+ +------------------+                                     +------------------------+
+                                                                      |
+                                                                      v
+                                                           +------------------------+
+                                                           | Payment service        |
+                                                           | (processes once,       |
+                                                           |  deletes message)      |
+                                                           +------------------------+
+```
+
+**Correct Answer: D**
+
+**Explanation:** An SQS FIFO queue provides exactly-once processing and message deduplication (using the order number as a deduplication ID), so even if the checkout form is resubmitted and generates a duplicate message, the payment service processes the order only once. Combined with the payment service retrieving and then deleting the message after processing, this reliably prevents multiple orders for the same transaction.
+
+- A. Wrong — Kinesis Data Firehose is a one-way delivery pipeline into destinations like S3/Redshift; it doesn't support consumers polling and processing individual messages with deduplication, so it can't prevent duplicate order processing.
+- B. Wrong — Invoking a Lambda function from CloudTrail based on logged API activity is an indirect, poorly-suited mechanism for handling checkout submissions and has no built-in deduplication of resubmitted forms.
+- C. Wrong — Standard SNS does not provide message deduplication or exactly-once delivery; a duplicate resubmission would still generate a duplicate notification and duplicate payment processing.
+
+## Question 92
+
+A research laboratory needs to process approximately 8 TB of data. The laboratory requires sub-millisecond latencies and a minimum throughput of 6 GBps for the storage subsystem. Hundreds of Amazon EC2 instances that run Amazon Linux will distribute and process the data.
+
+Which solution will meet the performance requirements?
+
+- A. Create an Amazon FSx for NetApp ONTAP file system. Set each volume's tiering policy to ALL. Import the raw data into the file system. Mount the file system on the EC2 instances.
+- B. Create an Amazon S3 bucket to store the raw data. Create an Amazon FSx for Lustre file system that uses persistent SSD storage. Select the option to import data from and export data to Amazon S3. Mount the file system on the EC2 instances.
+- C. Create an Amazon S3 bucket to store the raw data. Create an Amazon FSx for Lustre file system that uses persistent HDD storage. Select the option to import data from and export data to Amazon S3. Mount the file system on the EC2 instances.
+- D. Create an Amazon FSx for NetApp ONTAP file system. Set each volume's tiering policy to NONE. Import the raw data into the file system. Mount the file system on the EC2 instances.
+
+**Architecture Diagram:**
+
+```
+ +------------------+     import/export     +------------------------+     +------------------------+
+ | Amazon S3 bucket | <--------------------> | Amazon FSx for Lustre  | --> | Hundreds of EC2        |
+ | (raw data, 8 TB) |                        | (persistent SSD,        |     | instances (Amazon      |
+ +------------------+                        |  sub-ms latency,        |     |  Linux, parallel        |
+                                               |  6+ GBps throughput)    |     |  processing)            |
+                                               +------------------------+     +------------------------+
+```
+
+**Correct Answer: B**
+
+**Explanation:** Amazon FSx for Lustre is a high-performance parallel file system purpose-built for HPC/compute-intensive workloads, and its persistent SSD storage option delivers the sub-millisecond latencies and multi-GBps throughput this research workload requires. Linking it to S3 for import/export lets it stage the raw data efficiently and write results back, and it mounts natively on Linux EC2 instances for hundreds of instances to process data in parallel.
+
+- A. Wrong — Amazon FSx for NetApp ONTAP is a general-purpose, feature-rich (snapshots, cloning, multi-protocol) file system, but it isn't the HPC-optimized choice for guaranteed sub-millisecond latency and 6+ GBps throughput that Lustre with SSD storage provides for this scale-out compute scenario.
+- C. Wrong — Persistent HDD storage for FSx for Lustre has significantly higher latency than SSD and cannot reliably deliver sub-millisecond latencies, failing the stated performance requirement.
+- D. Wrong — Same fundamental mismatch as option A: FSx for NetApp ONTAP is not the purpose-built HPC parallel file system that Lustre is, regardless of the tiering policy setting, so it isn't tuned to guarantee this level of throughput and latency.
+
+## Question 93
+
+A company is building a web-based application running on Amazon EC2 instances in multiple Availability Zones. The web application will provide access to a repository of text documents totaling about 900 TB in size. The company anticipates that the web application will experience periods of high demand. A solutions architect must ensure that the storage component for the text documents can scale to meet the demand of the application at all times. The company is concerned about the overall cost of the solution.
+
+Which storage solution meets these requirements MOST cost-effectively?
+
+- A. Amazon Elastic Block Store (Amazon EBS)
+- B. Amazon Elastic File System (Amazon EFS)
+- C. Amazon OpenSearch Service (Amazon Elasticsearch Service)
+- D. Amazon S3
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +----------------------------+     +------------------------+
+ | EC2 instances           | --> | Application Load Balancer  | --> | Amazon S3              |
+ | (multiple AZs)          |     +----------------------------+     | (900 TB text documents,|
+ +------------------------+                                        |  virtually unlimited,   |
+                                                                     |  pay-per-use scaling)   |
+                                                                     +------------------------+
+```
+
+**Correct Answer: D**
+
+**Explanation:** Amazon S3 provides virtually unlimited, durable object storage with automatic scaling to handle any level of demand, and its pay-for-what-you-use pricing model makes it the most cost-effective way to store 900 TB of text documents accessed by EC2 instances across multiple Availability Zones — with no capacity to provision or manage ahead of time.
+
+- A. Wrong — Amazon EBS volumes are attached to a single EC2 instance at a time and have a per-volume size limit far below 900 TB, and provisioning that much block storage would be significantly more expensive than S3 for this use case.
+- B. Wrong — Amazon EFS can scale and be shared across instances/AZs, but its per-GB storage cost is substantially higher than S3, making it less cost-effective for storing 900 TB of documents.
+- C. Wrong — Amazon OpenSearch Service is a search and analytics engine, not a general-purpose document storage solution, and running a cluster large enough to hold 900 TB would be far more expensive and operationally complex than storing files in S3.
+
+## Question 94 (Choose two)
+
+A solutions architect has created a new AWS account and must secure AWS account root user access.
+
+Which combination of actions will accomplish this? (Choose two.)
+
+- A. Ensure the root user uses a strong password.
+- B. Enable multi-factor authentication to the root user.
+- C. Store root user access keys in an encrypted Amazon S3 bucket.
+- D. Add the root user to a group containing administrative permissions.
+- E. Apply the required permissions to the root user with an inline policy document.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +----------------------------+
+ | AWS account root user   | --> | Strong password             |
+ |                          |     | + MFA device (virtual/     |
+ |                          |     |   hardware token)           |
+ +------------------------+     +----------------------------+
+```
+
+**Correct Answers: A, B**
+
+**Explanation:** Best practice for securing the root user is to set a strong, unique password (A) and enable multi-factor authentication on that root account (B), so that even if the password is somehow exposed, an attacker still cannot sign in without the second factor. These are the two foundational root-user security controls AWS itself recommends, and neither requires creating or managing any additional credentials.
+
+- C. Wrong — Best practice is to avoid creating root user access keys entirely; storing them (even encrypted) in S3 keeps long-lived, highly privileged credentials in circulation, which is a security risk rather than a mitigation.
+- D. Wrong — The root user does not need to be (and should not be) added to an IAM group; day-to-day administrative work should be done through separate IAM users/roles with appropriate permissions, not the root user.
+- E. Wrong — IAM policies (inline or otherwise) are not attached to the root user to grant permissions — the root user already has full, unrestricted access to the account by default, so this action doesn't apply or make sense.
+
+## Question 95
+
+A company is building a new dynamic ordering website. The company wants to minimize server maintenance and patching. The website must be highly available and must scale read and write capacity as quickly as possible to meet changes in user demand.
+
+Which solution will meet these requirements?
+
+- A. Host static content in Amazon S3. Host dynamic content by using Amazon API Gateway and AWS Lambda. Use Amazon DynamoDB with on-demand capacity for the database. Configure Amazon CloudFront to deliver the website content.
+- B. Host static content in Amazon S3. Host dynamic content by using Amazon API Gateway and AWS Lambda. Use Amazon Aurora with Aurora Auto Scaling for the database. Configure Amazon CloudFront to deliver the website content.
+- C. Host all the website content on Amazon EC2 instances. Create an Auto Scaling group to scale the EC2 instances. Use an Application Load Balancer to distribute traffic. Use Amazon DynamoDB with provisioned write capacity for the database.
+- D. Host all the website content on Amazon EC2 instances. Create an Auto Scaling group to scale the EC2 instances. Use an Application Load Balancer to distribute traffic. Use Amazon Aurora with Aurora Auto Scaling for the database.
+
+**Architecture Diagram:**
+
+```
+ +----------+     +------------------------+     +------------------------+
+ | Users    | --> | Amazon CloudFront      | --> | Amazon S3 (static)     |
+ |          |     |                         |     +------------------------+
+ |          |     |                         | --> | API Gateway + Lambda   |
+ |          |     |                         |     | (dynamic content)      |
+ +----------+     +------------------------+     +------------------------+
+                                                              |
+                                                              v
+                                                   +------------------------+
+                                                   | DynamoDB (on-demand    |
+                                                   | capacity, instant      |
+                                                   | read/write scaling)    |
+                                                   +------------------------+
+```
+
+**Correct Answer: A**
+
+**Explanation:** This is a fully serverless stack: S3 and CloudFront serve static content with no servers to patch, API Gateway and Lambda run dynamic logic without managing any infrastructure, and DynamoDB with on-demand capacity scales both read and write throughput almost instantly in response to traffic changes with zero capacity planning — matching every stated requirement (no server maintenance, high availability, fastest possible read/write scaling).
+
+- B. Wrong — Aurora, even with Aurora Auto Scaling, still runs on managed database instances that take time to add read replicas and does not scale write capacity as instantly as DynamoDB on-demand, which better matches the "as quickly as possible" requirement for both reads and writes.
+- C. Wrong — Hosting content on EC2 instances (even in an Auto Scaling group) still requires patching and maintaining the underlying operating system, directly conflicting with the requirement to minimize server maintenance.
+- D. Wrong — Same EC2 server maintenance problem as option C, and Aurora Auto Scaling still doesn't scale write capacity as quickly as DynamoDB on-demand capacity.
+
+## Question 96
+
+A reporting team receives files each day in an Amazon S3 bucket. The reporting team manually reviews and copies the files from this initial S3 bucket to an analysis S3 bucket each day at the same time to use with Amazon QuickSight. Additional teams are starting to send more files in larger sizes to the initial S3 bucket.
+
+The reporting team wants to move the files automatically to the analysis S3 bucket as the files enter the initial S3 bucket. The reporting team also wants to use AWS Lambda functions to run pattern-matching code on the copied data. In addition, the reporting team wants to send the data files to a pipeline in Amazon SageMaker Pipelines.
+
+What should a solutions architect do to meet these requirements with the LEAST operational overhead?
+
+- A. Create a Lambda function to copy the files to the analysis S3 bucket. Create an S3 event notification for the analysis S3 bucket. Configure Lambda and SageMaker Pipelines as destinations of the event notification. Configure s3:ObjectCreated:Put as the event type.
+- B. Create a Lambda function to copy the files to the analysis S3 bucket. Configure the analysis S3 bucket to send event notifications to Amazon EventBridge (Amazon CloudWatch Events). Configure an ObjectCreated rule in EventBridge (CloudWatch Events). Configure Lambda and SageMaker Pipelines as targets for the rule.
+- C. Configure S3 replication between the S3 buckets. Create an S3 event notification for the analysis S3 bucket. Configure Lambda and SageMaker Pipelines as destinations of the event notification. Configure s3:ObjectCreated:Put as the event type.
+- D. Configure S3 replication between the S3 buckets. Configure the analysis S3 bucket to send event notifications to Amazon EventBridge (Amazon CloudWatch Events). Configure an ObjectCreated rule in EventBridge (CloudWatch Events). Configure Lambda and SageMaker Pipelines as targets for the rule.
+
+**Architecture Diagram:**
+
+```
+ +------------------+   S3 replication   +------------------------+     +------------------------+
+ | Initial S3 bucket| ------------------> | Analysis S3 bucket     | --> | Amazon EventBridge     |
+ +------------------+                      +------------------------+     | (ObjectCreated rule)   |
+                                                                            +------------------------+
+                                                                                |              |
+                                                                                v              v
+                                                                     +----------------+  +------------------+
+                                                                     | AWS Lambda     |  | SageMaker        |
+                                                                     | (pattern match)|  | Pipelines         |
+                                                                     +----------------+  +------------------+
+```
+
+**Correct Answer: D**
+
+**Explanation:** S3 replication automatically and natively copies new files from the initial bucket to the analysis bucket with no custom code to write or maintain, unlike a Lambda function that would have to be triggered and manage the copy itself. Native S3 event notifications only support a limited set of destinations (SQS, SNS, Lambda) and can't directly target SageMaker Pipelines, so routing the analysis bucket's ObjectCreated events through Amazon EventBridge lets a single rule fan out to both a Lambda function (for pattern-matching) and a SageMaker Pipelines target — meeting every requirement with fully managed, native AWS features and no custom copy logic.
+
+- A. Wrong — Native S3 event notifications do not support SageMaker Pipelines as a destination type, so this configuration isn't achievable as described, and using a Lambda function to copy files adds unnecessary custom code compared to native S3 replication.
+- B. Wrong — Using a Lambda function to copy files between buckets adds custom code and operational overhead that S3 replication handles natively and automatically.
+- C. Wrong — Same limitation as option A: S3 event notifications can't directly target SageMaker Pipelines, so this configuration doesn't meet the requirement to send data to a SageMaker Pipelines pipeline.
+
+## Question 97 (Choose two)
+
+A social media company allows users to upload images to its website. The website runs on Amazon EC2 instances. During upload requests, the website resizes the images to a standard size and stores the resized images in Amazon S3. Users are experiencing slow upload requests to the website.
+
+The company needs to reduce coupling within the application and improve website performance. A solutions architect must design the most operationally efficient process for image uploads.
+
+Which combination of actions should the solutions architect take to meet these requirements? (Choose two.)
+
+- A. Configure the application to upload images to S3 Glacier.
+- B. Configure the web server to upload the original images to Amazon S3.
+- C. Configure the application to upload images directly from each user's browser to Amazon S3 through the use of a presigned URL.
+- D. Configure S3 Event Notifications to invoke an AWS Lambda function when an image is uploaded. Use the function to resize the image.
+- E. Create an Amazon EventBridge (Amazon CloudWatch Events) rule that invokes an AWS Lambda function on a schedule to resize uploaded images.
+
+**Architecture Diagram:**
+
+```
+ +----------+   presigned URL   +------------------------+     event     +------------------------+
+ | User's   | ----------------> | Amazon S3               | ------------> | AWS Lambda             |
+ | browser  |   direct upload   | (original image)         |  ObjectCreated| (resizes image, writes |
+ +----------+                    +------------------------+               |  resized copy to S3)   |
+                                                                            +------------------------+
+```
+
+**Correct Answers: C, D**
+
+**Explanation:** Uploading directly from the user's browser to S3 using a presigned URL removes the EC2 web servers from the upload data path entirely, eliminating them as a bottleneck and decoupling the upload process from the application tier. Configuring an S3 event notification to invoke a Lambda function on each upload then handles resizing asynchronously and event-driven, further decoupling the resize step from the request/response cycle — together directly addressing both the slow uploads and the coupling problem with minimal operational overhead.
+
+- A. Wrong — S3 Glacier is an archival storage class with long retrieval times; it isn't suitable for storing images that need to be actively served and resized as part of an interactive website.
+- B. Wrong — Uploading the original images through the web server still routes all upload traffic through the EC2 instances, keeping the same bottleneck and coupling that's causing the slow uploads.
+- E. Wrong — A scheduled Lambda invocation doesn't respond immediately to each new upload and would need to track/discover which images are new, making it far less efficient and more complex than a direct S3 event notification trigger.
+
+## Question 98
+
+A company is developing an application in the AWS Cloud. The application's HTTP API contains critical information that is published in Amazon API Gateway. The critical information must be accessible from only a limited set of trusted IP addresses that belong to the company's internal network.
+
+Which solution will meet these requirements?
+
+- A. Set up an API Gateway private integration to restrict access to a predefined set of IP addresses.
+- B. Create a resource policy for the API that denies access to any IP address that is not specifically allowed.
+- C. Directly deploy the API in a private subnet. Create a network ACL. Set up rules to allow the traffic from specific IP addresses.
+- D. Modify the security group that is attached to API Gateway to allow inbound traffic from only the trusted IP addresses.
+
+**Architecture Diagram:**
+
+```
+ +------------------+     +----------------------------+     +------------------------+
+ | Requests         | --> | Amazon API Gateway         | --> | HTTP API (critical    |
+ | (source IP       |     | Resource Policy:            |     | information)           |
+ |  checked)        |     | Deny * unless source IP in  |     +------------------------+
+                          | trusted CIDR list           |
+                          +----------------------------+
+```
+
+**Correct Answer: B**
+
+**Explanation:** An API Gateway resource policy can explicitly deny access to all requests except those originating from a specified set of IP address ranges (using a condition on the source IP), directly enforcing that only the company's trusted internal IP addresses can reach the API — a native, managed control built exactly for this purpose.
+
+- A. Wrong — Private integration connects API Gateway to resources inside a VPC (such as an NLB) via a VPC link; it isn't a mechanism for restricting which client IP addresses can call the API.
+- C. Wrong — API Gateway is a fully managed service that isn't deployed into a subnet you control, and network ACLs apply to VPC subnet traffic, not to a managed API Gateway endpoint, so this approach doesn't apply here.
+- D. Wrong — Security groups attach to VPC resources with elastic network interfaces (like EC2 instances or NLBs); a regional/edge-optimized API Gateway endpoint doesn't have a security group that can be modified this way.
+
+## Question 99
+
+A company needs to migrate a legacy application from an on-premises data center to the AWS Cloud because of hardware capacity constraints. The application runs 24 hours a day, 7 days a week. The application's database storage continues to grow over time.
+
+What should a solutions architect do to meet these requirements MOST cost-effectively?
+
+- A. Migrate the application layer to Amazon EC2 Spot Instances. Migrate the data storage layer to Amazon S3.
+- B. Migrate the application layer to Amazon EC2 Reserved Instances. Migrate the data storage layer to Amazon RDS On-Demand Instances.
+- C. Migrate the application layer to Amazon EC2 Reserved Instances. Migrate the data storage layer to Amazon Aurora Reserved Instances.
+- D. Migrate the application layer to Amazon EC2 On-Demand Instances. Migrate the data storage layer to Amazon RDS Reserved Instances.
+
+**Architecture Diagram:**
+
+```
+ +------------------------+     +------------------------+
+ | EC2 Reserved Instances | --> | Aurora Reserved         |
+ | (application layer,    |     | Instances (database     |
+ |  runs 24/7, steady)    |     |  layer, steady long-term|
+ +------------------------+     |  commitment; storage    |
+                                 |  auto-scales separately)|
+                                 +------------------------+
+```
+
+**Correct Answer: C**
+
+**Explanation:** Since the application runs continuously (24/7) with a steady, predictable long-term workload, committing to Reserved Instances for both the EC2 application layer and the Aurora database layer captures the deepest discount on compute versus On-Demand pricing. The fact that database storage keeps growing doesn't preclude using Aurora Reserved Instances: a Reserved Instance commitment covers the database's compute/instance class, while Aurora storage scales up automatically and is billed separately per GB, so growing storage doesn't require extra flexibility in the compute layer.
+
+- A. Wrong — Spot Instances can be interrupted at any time, which is unsuitable for an application that must run continuously 24/7, and Amazon S3 is object storage, not a relational database storage layer suited to a legacy application's database.
+- B. Wrong — Since the application (and by extension its database) runs continuously in a steady, predictable pattern, RDS On-Demand pricing leaves cost savings on the table compared to committing to Reserved Instances, which is cheaper for an always-on workload.
+- D. Wrong — Running the application layer on-demand instead of Reserved Instances forgoes savings for a workload that is known to run 24/7 continuously, making this less cost-effective than reserving both layers.
+
+## Question 100
+
+A company has an application that places hundreds of .csv files into an Amazon S3 bucket every hour. The files are 1 GB in size. Each time a file is uploaded, the company needs to convert the file to Apache Parquet format and place the output file into an S3 bucket.
+
+Which solution will meet these requirements with the LEAST operational overhead?
+
+- A. Create an AWS Lambda function to download the .csv files, convert the files to Parquet format, and place the output files in an S3 bucket. Invoke the Lambda function for each S3 PUT event.
+- B. Create an Apache Spark job to read the .csv files, convert the files to Parquet format, and place the output files in an S3 bucket. Create an AWS Lambda function for each S3 PUT event to invoke the Spark job.
+- C. Create an AWS Glue table and an AWS Glue crawler for the S3 bucket where the application places the .csv files. Schedule an AWS Lambda function to periodically use Amazon Athena to query the AWS Glue table, convert the query results into Parquet format, and place the output files into an S3 bucket.
+- D. Create an AWS Glue extract, transform, and load (ETL) job to convert the .csv files to Parquet format and place the output files into an S3 bucket. Create an AWS Lambda function for each S3 PUT event to invoke the ETL job.
+
+**Architecture Diagram:**
+
+```
+ +------------------+     S3 PUT event     +------------------------+     +------------------------+
+ | .csv file upload | ------------------->  | AWS Lambda (trigger)  | --> | AWS Glue ETL job       |
+ | (hundreds/hour,  |                        +------------------------+     | (converts to Parquet,  |
+ |  1 GB each)      |                                                       |  writes to S3)         |
+ +------------------+                                                       +------------------------+
+```
+
+**Correct Answer: D**
+
+**Explanation:** AWS Glue ETL jobs natively support converting data formats (including CSV to Parquet) as a fully managed, serverless service — no custom conversion code or cluster management is required. A lightweight Lambda function triggered on each S3 PUT event simply invokes the Glue job, so the heavy lifting (format conversion at scale for 1 GB files) is handled by Glue's managed Spark environment, giving the least operational overhead of the options.
+
+- A. Wrong — Implementing custom CSV-to-Parquet conversion logic inside a Lambda function means the company must write, maintain, and test that conversion code itself, plus manage Lambda's memory/timeout limits for 1 GB files, which is more operational effort than using Glue's built-in format conversion.
+- B. Wrong — Standing up and maintaining a custom Apache Spark job (and the infrastructure or service running it) adds significant operational overhead compared to a fully managed AWS Glue ETL job that already provides this capability out of the box.
+- C. Wrong — Using a scheduled Lambda function to periodically query via Athena and convert results introduces polling delay (not truly event-driven per file) and requires custom code to convert Athena query results into Parquet, which is more complex and less immediate than a direct Glue ETL job triggered per upload.
